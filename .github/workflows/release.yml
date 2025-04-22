@@ -9,17 +9,17 @@ jobs:
   create-release:
     runs-on: ubuntu-latest
     outputs:
-      RELEASE_UPLOAD_ID: ${{ steps.create_release.outputs.id }}
       VERSION: ${{ steps.get_version.outputs.version }}
+      RELEASE_UPLOAD_ID: ${{ steps.create_release.outputs.id }}
 
     steps:
       - uses: actions/checkout@v2
 
-      - name: Query version number
+      - name: Get version from tag
         id: get_version
         run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Create Release
+      - name: Create GitHub Release
         id: create_release
         uses: actions/create-release@v1
         env:
@@ -55,32 +55,22 @@ jobs:
           node-version: 20
           cache: 'pnpm'
 
-      - name: Get pnpm store directory
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Install Rust stable
+      - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+          override: true
 
       - uses: Swatinem/rust-cache@v1
 
-      - name: Install dependencies (ubuntu only)
+      - name: Install platform-specific dependencies
         if: matrix.platform == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libappindicator3-dev librsvg2-dev patchelf libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev
           echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" >> $GITHUB_ENV
 
-      - name: Install dependencies (windows only)
+      - name: Install Windows dependencies
         if: matrix.platform == 'windows-latest'
         run: |
           $WIX_PATH = "C:\wix"
@@ -90,82 +80,67 @@ jobs:
           echo "WIX=$WIX_PATH" >> $env:GITHUB_ENV
           echo "TAURI_WIX_DIR=$WIX_PATH" >> $env:GITHUB_ENV
 
-      - uses: jetli/wasm-pack-action@v0.3.0
-        with:
-          version: v0.9.1
-
-      - name: Install rsw
-        run: cargo install rsw
-
-      - name: Install app dependencies and build it
+      - name: Build frontend
         run: pnpm install && pnpm pubhome
 
-      - name: Rename artifacts (auto-detect arch)
+      - name: Build Tauri App
+        run: pnpm tauri build
+
+      - name: Rename & package artifacts
         run: |
           VERSION="${{ needs.create-release.outputs.VERSION }}"
           cd src-tauri/target/release/bundle
 
-          # dmg
-          if ls dmg/*.dmg 1> /dev/null 2>&1; then
+          # Rename .dmg or .app files for macOS
+          if [ -d "macos" ]; then
+            for app in macos/*.app; do
+              echo "Processing $app"
+              mv "$app" "macos/app.app"
+              cd macos && tar -czf app.app.tar.gz app.app && cd ..
+            done
+          fi
+
+          if [ -d "dmg" ]; then
             for file in dmg/*.dmg; do
-              arch=""
-              [[ $file == *aarch64* ]] && arch="arm64"
-              [[ $file == *x64* || $file == *amd64* ]] && arch="x64"
+              echo "Processing $file"
+              arch="arm64"
+              [[ "$file" == *x64* || "$file" == *amd64* ]] && arch="x64"
               mv "$file" "dmg/app_${VERSION}_${arch}.dmg"
             done
           fi
 
-          # .app + tar.gz
-          if ls macos/*.app 1> /dev/null 2>&1; then
-            for app in macos/*.app; do
-              arch=""
-              [[ $app == *arm64* ]] && arch="arm64"
-              [[ $app == *x64* ]] && arch="x64"
-              mv "$app" "macos/app_${arch}.app"
-              cd macos && tar -czf app_${arch}.app.tar.gz app_${arch}.app && cd ..
-            done
-          fi
-
-          # AppImage
-          if ls appimage/*.AppImage 1> /dev/null 2>&1; then
+          # Rename Linux artifacts
+          if [ -d "appimage" ]; then
             for file in appimage/*.AppImage; do
-              arch=""
-              [[ $file == *arm64* ]] && arch="arm64"
-              [[ $file == *amd64* ]] && arch="amd64"
+              arch="arm64"
+              [[ "$file" == *amd64* ]] && arch="amd64"
               mv "$file" "appimage/app_${VERSION}_${arch}.AppImage"
               cd appimage && tar -czf app_${VERSION}_${arch}.AppImage.tar.gz app_${VERSION}_${arch}.AppImage && cd ..
             done
           fi
 
-          # deb
-          if ls deb/*.deb 1> /dev/null 2>&1; then
+          if [ -d "deb" ]; then
             for file in deb/*.deb; do
-              arch=""
-              [[ $file == *arm64* ]] && arch="arm64"
-              [[ $file == *amd64* ]] && arch="amd64"
+              arch="arm64"
+              [[ "$file" == *amd64* ]] && arch="amd64"
               mv "$file" "deb/app_${VERSION}_${arch}.deb"
             done
           fi
 
-          # Windows: nsis + msi
-          if ls nsis/*setup.exe 1> /dev/null 2>&1; then
-            for file in nsis/*setup.exe; do
-              mv "$file" "nsis/app_${VERSION}_x64-setup.exe"
-            done
+          # Rename Windows artifacts
+          if [ -d "msi" ]; then
+            mv msi/*.msi msi/app_${VERSION}_x64.msi || true
+          fi
+          if [ -d "nsis" ]; then
+            mv nsis/*.exe nsis/app_${VERSION}_x64-setup.exe || true
           fi
 
-          if ls msi/*.msi 1> /dev/null 2>&1; then
-            for file in msi/*.msi; do
-              mv "$file" "msi/app_${VERSION}_x64_en-US.msi"
-            done
-          fi
+          echo "Artifacts after rename:"
+          find . -type f
 
-      - uses: tauri-apps/tauri-action@v0.3
+      - name: Upload Artifacts to Release
+        uses: tauri-apps/tauri-action@v0.3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           releaseId: ${{ needs.create-release.outputs.RELEASE_UPLOAD_ID }}
-          includeDebugArtifacts: true
-          releaseDraft: false
-          prerelease: false
-          publish: true
