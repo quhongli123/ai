@@ -166,6 +166,8 @@ jobs:
               cd macos
               if [ -f "app.app" ]; then
                 tar -czf app.app.tar.gz app.app
+                # 生成签名文件
+                openssl dgst -sha256 -sign /Users/runner/work/ai/ai/src-tauri/target/release/app.app.tar.gz > app.app.tar.gz.sig
               fi
             else
               if [ -f "macos/AI 学院.app" ]; then
@@ -177,6 +179,8 @@ jobs:
               cd macos
               if [ -f "app.app" ]; then
                 tar -czf app.app.tar.gz app.app
+                # 生成签名文件
+                openssl dgst -sha256 -sign /Users/runner/work/ai/ai/src-tauri/target/release/app.app.tar.gz > app.app.tar.gz.sig
               fi
             fi
           elif [ "${{ matrix.platform }}" == "ubuntu-latest" ]; then
@@ -237,10 +241,12 @@ jobs:
               [ -f "macos/app.app" ] && echo "app.app exists" || echo "app.app does not exist"
               [ -f "dmg/app_0.1.0_x64.dmg" ] && echo "app_0.1.0_x64.dmg exists" || echo "app_0.1.0_x64.dmg does not exist"
               [ -f "macos/app.app.tar.gz" ] && echo "app.app.tar.gz exists" || echo "app.app.tar.gz does not exist"
+              [ -f "macos/app.app.tar.gz.sig" ] && echo "app.app.tar.gz.sig exists" || echo "app.app.tar.gz.sig does not exist"
             else
               [ -f "macos/app.app" ] && echo "app.app exists" || echo "app.app does not exist"
               [ -f "dmg/app_0.1.0_arm64.dmg" ] && echo "app_0.1.0_arm64.dmg exists" || echo "app_0.1.0_arm64.dmg does not exist"
               [ -f "macos/app.app.tar.gz" ] && echo "app.app.tar.gz exists" || echo "app.app.tar.gz does not exist"
+              [ -f "macos/app.app.tar.gz.sig" ] && echo "app.app.tar.gz.sig exists" || echo "app.app.tar.gz.sig does not exist"
             fi
           elif [ "${{ matrix.platform }}" == "ubuntu-latest" ]; then
             if [ "${{ matrix.arch }}" == "x64" ]; then
