@@ -47,6 +47,9 @@ jobs:
       matrix:
         platform: [macos-latest, ubuntu-latest]
         arch: [x64, arm64]
+        exclude:
+          - platform: ubuntu-latest
+            arch: arm64
  
     runs-on: ${{ matrix.platform }}
     steps:
@@ -157,33 +160,73 @@ jobs:
           if [ "${{ matrix.platform }}" == "macos-latest" ]; then
             # macOS 重命名
             if [ "${{ matrix.arch }}" == "x64" ]; then
-              mv "macos/AI 学院.app" "macos/app_x64.app"
-              mv "dmg/AI 学院_0.1.0_x64.dmg" "dmg/app_0.1.0_x64.dmg"
+              if [ -f "macos/AI 学院.app" ]; then
+                mv "macos/AI 学院.app" "macos/app_x64.app"
+              fi
+              if [ -f "dmg/AI 学院_0.1.0_x64.dmg" ]; then
+                mv "dmg/AI 学院_0.1.0_x64.dmg" "dmg/app_0.1.0_x64.dmg"
+              fi
               cd macos
-              tar -czf app_x64.app.tar.gz app_x64.app
+              if [ -f "app_x64.app" ]; then
+                tar -czf app_x64.app.tar.gz app_x64.app
+              fi
             else
-              mv "macos/AI 学院.app" "macos/app_arm64.app"
-              mv "dmg/AI 学院_0.1.0_aarch64.dmg" "dmg/app_0.1.0_arm64.dmg"
+              if [ -f "macos/AI 学院.app" ]; then
+                mv "macos/AI 学院.app" "macos/app_arm64.app"
+              fi
+              if [ -f "dmg/AI 学院_0.1.0_aarch64.dmg" ]; then
+                mv "dmg/AI 学院_0.1.0_aarch64.dmg" "dmg/app_0.1.0_arm64.dmg"
+              fi
               cd macos
-              tar -czf app_arm64.app.tar.gz app_arm64.app
+              if [ -f "app_arm64.app" ]; then
+                tar -czf app_arm64.app.tar.gz app_arm64.app
+              fi
             fi
           elif [ "${{ matrix.platform }}" == "ubuntu-latest" ]; then
             # Linux 重命名
-            if [ "${{ matrix.arch }}" == "x64" ]; then
+            if [ -f "deb/AI 学院_0.1.0_amd64.deb" ]; then
               mv "deb/AI 学院_0.1.0_amd64.deb" "deb/app_0.1.0_amd64.deb"
+            fi
+            if [ -f "appimage/AI 学院_0.1.0_amd64.AppImage" ]; then
               mv "appimage/AI 学院_0.1.0_amd64.AppImage" "appimage/app_0.1.0_amd64.AppImage"
-              cd appimage
+            fi
+            cd appimage
+            if [ -f "app_0.1.0_amd64.AppImage" ]; then
               tar -czf app_0.1.0_amd64.AppImage.tar.gz app_0.1.0_amd64.AppImage
-            else
-              mv "deb/AI 学院_0.1.0_arm64.deb" "deb/app_0.1.0_arm64.deb"
-              mv "appimage/AI 学院_0.1.0_arm64.AppImage" "appimage/app_0.1.0_arm64.AppImage"
-              cd appimage
-              tar -czf app_0.1.0_arm64.AppImage.tar.gz app_0.1.0_arm64.AppImage
             fi
           elif [ "${{ matrix.platform }}" == "windows-latest" ]; then
             # Windows 重命名
-            mv "msi/AI 学院_0.1.0_x64_en-US.msi" "msi/app_0.1.0_x64_en-US.msi"
-            mv "nsis/AI 学院_0.1.0_x64-setup.exe" "nsis/app_0.1.0_x64-setup.exe"
+            if [ -f "msi/AI 学院_0.1.0_x64_en-US.msi" ]; then
+              mv "msi/AI 学院_0.1.0_x64_en-US.msi" "msi/app_0.1.0_x64_en-US.msi"
+            fi
+            if [ -f "nsis/AI 学院_0.1.0_x64-setup.exe" ]; then
+              mv "nsis/AI 学院_0.1.0_x64-setup.exe" "nsis/app_0.1.0_x64-setup.exe"
+            fi
+          fi
+
+      - name: List bundle directory
+        run: |
+          cd src-tauri/target/release/bundle
+          echo "Listing bundle directory contents:"
+          ls -R
+          echo "Current working directory:"
+          pwd
+
+      - name: Verify artifacts
+        run: |
+          cd src-tauri/target/release/bundle
+          echo "Verifying artifacts exist:"
+          if [ "${{ matrix.platform }}" == "macos-latest" ]; then
+            if [ "${{ matrix.arch }}" == "x64" ]; then
+              [ -f "macos/app_x64.app" ] && echo "app_x64.app exists" || echo "app_x64.app does not exist"
+              [ -f "dmg/app_0.1.0_x64.dmg" ] && echo "app_0.1.0_x64.dmg exists" || echo "app_0.1.0_x64.dmg does not exist"
+            else
+              [ -f "macos/app_arm64.app" ] && echo "app_arm64.app exists" || echo "app_arm64.app does not exist"
+              [ -f "dmg/app_0.1.0_arm64.dmg" ] && echo "app_0.1.0_arm64.dmg exists" || echo "app_0.1.0_arm64.dmg does not exist"
+            fi
+          elif [ "${{ matrix.platform }}" == "ubuntu-latest" ]; then
+            [ -f "deb/app_0.1.0_amd64.deb" ] && echo "app_0.1.0_amd64.deb exists" || echo "app_0.1.0_amd64.deb does not exist"
+            [ -f "appimage/app_0.1.0_amd64.AppImage" ] && echo "app_0.1.0_amd64.AppImage exists" || echo "app_0.1.0_amd64.AppImage does not exist"
           fi
       - uses: tauri-apps/tauri-action@v0.3
         env:
