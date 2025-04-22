@@ -191,3 +191,10 @@ jobs:
           includeDebug: true
           releaseDraft: false
           prerelease: false
+          artifactPatterns: |
+            src-tauri/target/debug/bundle/macos/*.app
+            src-tauri/target/debug/bundle/dmg/*_0.1.0_aarch64.dmg
+            src-tauri/target/debug/bundle/macos/*.app.tar.gz
+            src-tauri/target/debug/bundle/macos/*.app.tar.gz.sig
+            src-tauri/target/debug/bundle/deb/*.deb
+            src-tauri/target/debug/bundle/appimage/*.AppImage
