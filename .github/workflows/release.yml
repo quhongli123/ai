@@ -125,6 +125,8 @@ jobs:
             # Linux 重命名
             mv "deb/AI 学院_0.1.0_amd64.deb" "deb/app_0.1.0_amd64.deb"
             mv "appimage/AI 学院_0.1.0_amd64.AppImage" "appimage/app_0.1.0_amd64.AppImage"
+            cd appimage
+            tar -czf app_0.1.0_amd64.AppImage.tar.gz app_0.1.0_amd64.AppImage
           elif [ "${{ matrix.platform }}" == "windows-latest" ]; then
             # Windows 重命名
             mv "msi/AI 学院_0.1.0_x64_en-US.msi" "msi/app_0.1.0_x64_en-US.msi"
@@ -133,7 +135,7 @@ jobs:
 
       - uses: tauri-apps/tauri-action@v0.3
         env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           releaseId: ${{ needs.create-release.outputs.RELEASE_UPLOAD_ID }}
           includeDebugArtifacts: true
