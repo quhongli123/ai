@@ -57,7 +57,12 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 20
- 
+          cache: 'pnpm'
+     - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          run_install: false
       # 安装 Rust
       - name: Install Rust stable
         uses: actions-rs/toolchain@v1
@@ -100,8 +105,8 @@ jobs:
  
       # 安装依赖执行构建，以及推送 github release
       - name: Install app dependencies and build it
-      # 这里的pubhome要修改为你package.json里面配置的编译命令
-        run: yarn && yarn pubhome
+        run: pnpm install && pnpm pubhome
+
       - uses: tauri-apps/tauri-action@v0.3
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN }}
