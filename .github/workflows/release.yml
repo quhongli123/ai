@@ -52,6 +52,9 @@ jobs:
           - platform: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             arch: arm64
+          - platform: ubuntu-latest
+            target: armv7-unknown-linux-gnueabihf
+        arch: armhf
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -95,49 +98,9 @@ jobs:
       # 使用 Rust 缓存，加快安装速度
       - uses: Swatinem/rust-cache@v1
 
-      - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          if [ "${{ matrix.arch }}" == "arm64" ]; then
-            # 添加 ARM64 架构支持
-            sudo dpkg --add-architecture arm64
-            # 配置 ARM64 软件源
-            echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ noble main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
-            echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ noble-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
-            echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ noble-backports main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
-            echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ noble-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
-            sudo apt-get update
-            # 安装 ARM64 交叉编译工具链
-            sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-            # 安装 ARM64 系统库
-            sudo apt-get install -y \
-              libgtk-3-dev:arm64 \
-              libwebkit2gtk-4.0-dev:arm64 \
-              libappindicator3-dev:arm64 \
-              librsvg2-dev:arm64 \
-              patchelf:arm64
-            # 设置 ARM64 交叉编译环境变量
-            echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-            echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
-            echo "PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
-            echo "PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu" >> $GITHUB_ENV
-          else
-            # 安装 AMD64 依赖
-            sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libappindicator3-dev librsvg2-dev patchelf libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev
-            echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" >> $GITHUB_ENV
-          fi
-          # 验证 pkg-config 设置
-          pkg-config --list-all
-
-      # 可选，如果需要将 Rust 编译为 wasm，则安装 wasm-pack
-      - uses: jetli/wasm-pack-action@v0.3.0
-        with:
-          version: v0.9.1
-
-      # 可选，如果需要使用 rsw 构建 wasm，则安装 rsw
-      - name: Install rsw
-        run: cargo install rsw
+      # 安装 tauri-cross
+      - name: Install tauri-cross
+        run: cargo install tauri-cross
 
       # 安装依赖执行构建，以及推送 github release
       - name: Install app dependencies and build it
@@ -147,13 +110,9 @@ jobs:
             pnpm run build
             cd src-tauri
             if [ "${{ matrix.arch }}" == "arm64" ]; then
-              cargo build --target aarch64-unknown-linux-gnu --release
-              cd ..
-              npx tauri build --target aarch64-unknown-linux-gnu
+              tauri-cross build --target aarch64-unknown-linux-gnu --release
             else
-              cargo build --target x86_64-unknown-linux-gnu --release
-              cd ..
-              npx tauri build --target x86_64-unknown-linux-gnu
+              tauri-cross build --target x86_64-unknown-linux-gnu --release
             fi
           else
             pnpm pubhome
