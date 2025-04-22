@@ -36,7 +36,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, ubuntu-latest]
+        platform: [macos-latest, ubuntu-latest, windows-latest]
+        arch: [x64, arm64]  # 添加架构区分
 
     runs-on: ${{ matrix.platform }}
 
@@ -100,20 +101,19 @@ jobs:
             done
           fi
 
+          # Rename dmg files for macOS (with architecture distinction)
           if [ -d "dmg" ]; then
             for file in dmg/*.dmg; do
               echo "Processing $file"
-              arch="arm64"
-              [[ "$file" == *x64* || "$file" == *amd64* ]] && arch="x64"
+              arch="${{ matrix.arch }}"
               mv "$file" "dmg/app_${VERSION}_${arch}.dmg"
             done
           fi
 
-          # Rename Linux artifacts
+          # Rename Linux artifacts with architecture distinction
           if [ -d "appimage" ]; then
             for file in appimage/*.AppImage; do
-              arch="arm64"
-              [[ "$file" == *amd64* ]] && arch="amd64"
+              arch="${{ matrix.arch }}"
               mv "$file" "appimage/app_${VERSION}_${arch}.AppImage"
               cd appimage && tar -czf app_${VERSION}_${arch}.AppImage.tar.gz app_${VERSION}_${arch}.AppImage && cd ..
             done
@@ -121,22 +121,26 @@ jobs:
 
           if [ -d "deb" ]; then
             for file in deb/*.deb; do
-              arch="arm64"
-              [[ "$file" == *amd64* ]] && arch="amd64"
+              arch="${{ matrix.arch }}"
               mv "$file" "deb/app_${VERSION}_${arch}.deb"
             done
           fi
 
           # Rename Windows artifacts
           if [ -d "msi" ]; then
-            mv msi/*.msi msi/app_${VERSION}_x64.msi || true
+            mv msi/*.msi msi/app_${VERSION}_${matrix.arch}.msi || true
           fi
           if [ -d "nsis" ]; then
-            mv nsis/*.exe nsis/app_${VERSION}_x64-setup.exe || true
+            mv nsis/*.exe nsis/app_${VERSION}_${matrix.arch}-setup.exe || true
           fi
 
           echo "Artifacts after rename:"
           find . -type f
+
+      - name: List files before upload
+        run: |
+          echo "Files before upload:"
+          find /home/runner/work/ai/ai/src-tauri/target/release/bundle -type f
 
       - name: Upload Artifacts to Release
         uses: tauri-apps/tauri-action@v0.3
