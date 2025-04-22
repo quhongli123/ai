@@ -120,12 +120,34 @@ jobs:
         if: matrix.platform == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libappindicator3-dev librsvg2-dev patchelf
-          # 对于 ARM 目标，执行额外的设置
-          ${{ matrix.setup || 'echo "No additional setup required for this target"' }}
+          # 安装所有必需的依赖库
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            webkit2gtk-4.0 \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libjavascriptcoregtk-4.1-dev \
+            libwebkit2gtk-4.1-dev \
+            libsoup-3.0-dev \  # 新增 libsoup 开发库
+            libsoup2.4-dev \   # 有些系统可能需要这个
+            libssl-dev \
+            libayatana-appindicator3-dev
+
+          # 对于 ARM 交叉编译
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
+            sudo apt-get install -y \
+              gcc-aarch64-linux-gnu \
+              g++-aarch64-linux-gnu \
+              libgtk-3-dev:aarch64 \
+              libsoup-3.0-dev:aarch64
+            rustup target add aarch64-unknown-linux-gnu
+            echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          fi
+
           # 设置 PKG_CONFIG_PATH
-          echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" >> $GITHUB_ENV
-          # 验证 pkg-config 设置
+          echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig:/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+          echo "PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1" >> $GITHUB_ENV
           pkg-config --list-all | grep javascriptcoregtk || true
 
       - name: install dependencies (windows only)
@@ -171,7 +193,8 @@ jobs:
 
       - name: Rename artifacts
         run: |
-          cd src-tauri/target/${{ matrix.target }}/release/bundle
+          cd src-tauri/target/release/bundle
+          
           if [ "${{ matrix.platform }}" == "macos-latest" ]; then
             # macOS 重命名
             mv "macos/AI 学院.app" "macos/app.app"
