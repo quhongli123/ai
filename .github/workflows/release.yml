@@ -169,12 +169,15 @@ jobs:
           cd src-tauri/target/release/bundle
           # 添加调试信息
           echo "Current directory: $(pwd)"
-          echo "Listing macos directory:"
-          ls -la macos/
-          echo "Listing dmg directory:"
-          ls -la dmg/
+          echo "Listing bundle directory:"
+          ls -la
           
           if [ "${{ matrix.platform }}" == "macos-latest" ]; then
+            echo "Listing macos directory:"
+            ls -la macos/
+            echo "Listing dmg directory:"
+            ls -la dmg/
+            
             # macOS 重命名
             if [ "${{ matrix.target }}" == "x86_64" ]; then
               # 使用通配符匹配文件
@@ -214,6 +217,11 @@ jobs:
               tar -czf app.app.tar.gz "app.app"
             fi
           elif [ "${{ matrix.platform }}" == "ubuntu-latest" ]; then
+            echo "Listing deb directory:"
+            ls -la deb/
+            echo "Listing appimage directory:"
+            ls -la appimage/
+            
             # Linux 重命名
             if [ "${{ matrix.target }}" == "x86_64" ]; then
               # 使用通配符匹配文件
@@ -256,7 +264,11 @@ jobs:
           
           # 验证重命名后的文件
           echo "Verifying renamed files:"
-          ls -la macos/ dmg/ deb/ appimage/ || true
+          if [ "${{ matrix.platform }}" == "macos-latest" ]; then
+            ls -la macos/ dmg/ || true
+          else
+            ls -la deb/ appimage/ || true
+          fi
       - uses: tauri-apps/tauri-action@v0.3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
