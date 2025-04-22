@@ -112,8 +112,16 @@ jobs:
       - name: Install app dependencies and build it
         run: pnpm install && pnpm pubhome
 
+      - name: List build artifacts
+        run: |
+          ls -la src-tauri/target/release/bundle/
+          ls -la src-tauri/target/release/bundle/macos/
+          ls -la src-tauri/target/release/bundle/dmg/
+
       - uses: tauri-apps/tauri-action@v0.3
         env:
           GITHUB_TOKEN: ${{ secrets.TOKEN }}
         with:
           releaseId: ${{ needs.create-release.outputs.RELEASE_UPLOAD_ID }}
+          includeDebugArtifacts: true
+          appName: "AI 学院"
