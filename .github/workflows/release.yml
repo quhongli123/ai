@@ -193,3 +193,4 @@ jobs:
           releaseBody: '请查看附件下载对应平台的安装包'
           releaseDraft: false
           prerelease: false
+          publish: true
