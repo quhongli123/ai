@@ -10,14 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       RELEASE_UPLOAD_ID: ${{ steps.create_release.outputs.id }}
+      VERSION: ${{ steps.get_version.outputs.version }}
 
     steps:
       - uses: actions/checkout@v2
 
       - name: Query version number
         id: get_version
-        run: |
-          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
       - name: Create Release
         id: create_release
@@ -37,17 +37,6 @@ jobs:
       fail-fast: false
       matrix:
         platform: [macos-latest, ubuntu-latest, windows-latest]
-        include:
-          - platform: macos-latest
-            arch: x64
-          - platform: macos-latest
-            arch: arm64
-          - platform: ubuntu-latest
-            arch: x64
-          - platform: ubuntu-latest
-            arch: arm64
-          - platform: windows-latest
-            arch: x64
 
     runs-on: ${{ matrix.platform }}
 
@@ -111,37 +100,64 @@ jobs:
       - name: Install app dependencies and build it
         run: pnpm install && pnpm pubhome
 
-      - name: Rename artifacts
+      - name: Rename artifacts (auto-detect arch)
         run: |
+          VERSION="${{ needs.create-release.outputs.VERSION }}"
           cd src-tauri/target/release/bundle
-          version="${{ needs.create-release.outputs.RELEASE_UPLOAD_ID }}"
-          if [ "${{ matrix.platform }}" = "macos-latest" ]; then
-            if [ "${{ matrix.arch }}" = "x64" ]; then
-              mv "macos/AI 学院.app" "macos/app_x64.app"
-              mv "dmg/AI 学院_0.1.0_x64.dmg" "dmg/app_0.1.0_x64.dmg"
-              cd macos && tar -czf app_x64.app.tar.gz app_x64.app
-            elif [ "${{ matrix.arch }}" = "arm64" ]; then
-              mv "macos/AI 学院.app" "macos/app_arm64.app"
-              mv "dmg/AI 学院_0.1.0_aarch64.dmg" "dmg/app_0.1.0_arm64.dmg"
-              cd macos && tar -czf app_arm64.app.tar.gz app_arm64.app
-            fi
-          elif [ "${{ matrix.platform }}" = "ubuntu-latest" ]; then
-            if [ "${{ matrix.arch }}" = "x64" ]; then
-              mv "deb/AI 学院_0.1.0_amd64.deb" "deb/app_0.1.0_amd64.deb"
-              mv "appimage/AI 学院_0.1.0_amd64.AppImage" "appimage/app_0.1.0_amd64.AppImage"
-              cd appimage && tar -czf app_0.1.0_amd64.AppImage.tar.gz app_0.1.0_amd64.AppImage
-            elif [ "${{ matrix.arch }}" = "arm64" ]; then
-              if [ -f "deb/AI 学院_0.1.0_arm64.deb" ]; then
-                mv "deb/AI 学院_0.1.0_arm64.deb" "deb/app_0.1.0_arm64.deb"
-              fi
-              if [ -f "appimage/AI 学院_0.1.0_arm64.AppImage" ]; then
-                mv "appimage/AI 学院_0.1.0_arm64.AppImage" "appimage/app_0.1.0_arm64.AppImage"
-                cd appimage && tar -czf app_0.1.0_arm64.AppImage.tar.gz app_0.1.0_arm64.AppImage
-              fi
-            fi
-          elif [ "${{ matrix.platform }}" = "windows-latest" ]; then
-            mv "msi/AI 学院_0.1.0_x64_en-US.msi" "msi/app_0.1.0_x64_en-US.msi"
-            mv "nsis/AI 学院_0.1.0_x64-setup.exe" "nsis/app_0.1.0_x64-setup.exe"
+
+          # dmg
+          if ls dmg/*.dmg 1> /dev/null 2>&1; then
+            for file in dmg/*.dmg; do
+              arch=""
+              [[ $file == *aarch64* ]] && arch="arm64"
+              [[ $file == *x64* || $file == *amd64* ]] && arch="x64"
+              mv "$file" "dmg/app_${VERSION}_${arch}.dmg"
+            done
+          fi
+
+          # .app + tar.gz
+          if ls macos/*.app 1> /dev/null 2>&1; then
+            for app in macos/*.app; do
+              arch=""
+              [[ $app == *arm64* ]] && arch="arm64"
+              [[ $app == *x64* ]] && arch="x64"
+              mv "$app" "macos/app_${arch}.app"
+              cd macos && tar -czf app_${arch}.app.tar.gz app_${arch}.app && cd ..
+            done
+          fi
+
+          # AppImage
+          if ls appimage/*.AppImage 1> /dev/null 2>&1; then
+            for file in appimage/*.AppImage; do
+              arch=""
+              [[ $file == *arm64* ]] && arch="arm64"
+              [[ $file == *amd64* ]] && arch="amd64"
+              mv "$file" "appimage/app_${VERSION}_${arch}.AppImage"
+              cd appimage && tar -czf app_${VERSION}_${arch}.AppImage.tar.gz app_${VERSION}_${arch}.AppImage && cd ..
+            done
+          fi
+
+          # deb
+          if ls deb/*.deb 1> /dev/null 2>&1; then
+            for file in deb/*.deb; do
+              arch=""
+              [[ $file == *arm64* ]] && arch="arm64"
+              [[ $file == *amd64* ]] && arch="amd64"
+              mv "$file" "deb/app_${VERSION}_${arch}.deb"
+            done
+          fi
+
+          # Windows: nsis + msi
+          if ls nsis/*setup.exe 1> /dev/null 2>&1; then
+            for file in nsis/*setup.exe; do
+              mv "$file" "nsis/app_${VERSION}_x64-setup.exe"
+            done
+          fi
+
+          if ls msi/*.msi 1> /dev/null 2>&1; then
+            for file in msi/*.msi; do
+              mv "$file" "msi/app_${VERSION}_x64_en-US.msi"
+            done
           fi
 
       - uses: tauri-apps/tauri-action@v0.3
