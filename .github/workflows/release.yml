@@ -98,6 +98,21 @@ jobs:
           # 验证 pkg-config 设置
           pkg-config --list-all | grep javascriptcoregtk
 
+      - name: install dependencies (windows only)
+        if: matrix.platform == 'windows-latest'
+        run: |
+          # 安装 WiX 工具集
+          $WIX_VERSION = "3.14.0"
+          $WIX_URL = "https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip"
+          $WIX_PATH = "C:\wix"
+          New-Item -ItemType Directory -Force -Path $WIX_PATH
+          Invoke-WebRequest -Uri $WIX_URL -OutFile "$WIX_PATH\wix.zip"
+          Expand-Archive -Path "$WIX_PATH\wix.zip" -DestinationPath $WIX_PATH
+          $env:PATH = "$WIX_PATH;$env:PATH"
+          # 验证安装
+          candle.exe -version
+          light.exe -version
+
       # 可选，如果需要将 Rust 编译为 wasm，则安装 wasm-pack
       - uses: jetli/wasm-pack-action@v0.3.0
         with:
