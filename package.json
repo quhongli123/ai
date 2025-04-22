@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "prepare": "husky install",
     "test": "echo \"No tests specified\" && exit 0",
-    "pubhome": "yarn build && yarn tauri build"
+    "pubhome": "vite build && npx tauri build"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
