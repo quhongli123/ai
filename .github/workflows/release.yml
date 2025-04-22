@@ -98,9 +98,9 @@ jobs:
       # 使用 Rust 缓存，加快安装速度
       - uses: Swatinem/rust-cache@v1
 
-      # 安装 tauri-cross
-      - name: Install tauri-cross
-        run: cargo install tauri-cross
+      # 安装 cross
+      - name: Install cross
+        run: cargo install cross
 
       # 安装依赖执行构建，以及推送 github release
       - name: Install app dependencies and build it
@@ -110,9 +110,17 @@ jobs:
             pnpm run build
             cd src-tauri
             if [ "${{ matrix.arch }}" == "arm64" ]; then
-              tauri-cross build --target aarch64-unknown-linux-gnu --release
+              cross build --target aarch64-unknown-linux-gnu --release
+              cd ..
+              npx tauri build --target aarch64-unknown-linux-gnu
+            elif [ "${{ matrix.arch }}" == "armhf" ]; then
+              cross build --target armv7-unknown-linux-gnueabihf --release
+              cd ..
+              npx tauri build --target armv7-unknown-linux-gnueabihf
             else
-              tauri-cross build --target x86_64-unknown-linux-gnu --release
+              cross build --target x86_64-unknown-linux-gnu --release
+              cd ..
+              npx tauri build --target x86_64-unknown-linux-gnu
             fi
           else
             pnpm pubhome
@@ -135,6 +143,13 @@ jobs:
               mv "appimage/AI 学院_0.1.0_arm64.AppImage" "appimage/app_0.1.0_arm64.AppImage"
               cd appimage
               tar -czf app_0.1.0_arm64.AppImage.tar.gz app_0.1.0_arm64.AppImage
+            elif [ "${{ matrix.arch }}" == "armhf" ]; then
+              cd ../armv7-unknown-linux-gnueabihf/release/bundle
+              # Linux ARMv7 重命名
+              mv "deb/AI 学院_0.1.0_armhf.deb" "deb/app_0.1.0_armhf.deb"
+              mv "appimage/AI 学院_0.1.0_armhf.AppImage" "appimage/app_0.1.0_armhf.AppImage"
+              cd appimage
+              tar -czf app_0.1.0_armhf.AppImage.tar.gz app_0.1.0_armhf.AppImage
             else
               # Linux AMD 重命名
               mv "deb/AI 学院_0.1.0_amd64.deb" "deb/app_0.1.0_amd64.deb"
