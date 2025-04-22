@@ -1,4 +1,4 @@
-# 可选，将显示在 GitHub 存储库的“操作”选项卡中的工作流名称
+# 可选，将显示在 GitHub 存储库的"操作"选项卡中的工作流名称
 name: Release CI
  
 # 指定此工作流的触发器
@@ -51,17 +51,34 @@ jobs:
     steps:
       - uses: actions/checkout@v2
  
-     # 安装 Node.js
+      # 安装 Node.js
       - name: Setup node
         uses: actions/setup-node@v3
         with:
           node-version: 20
           cache: 'pnpm'
-     - name: Setup pnpm
+      
+      # 安装 pnpm
+      - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
           version: 8
           run_install: false
+
+      # 使用 pnpm 缓存
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
       # 安装 Rust
       - name: Install Rust stable
         uses: actions-rs/toolchain@v1
@@ -86,21 +103,6 @@ jobs:
       # 可选，如果需要使用 rsw 构建 wasm，则安装 rsw
       - name: Install rsw
         run: cargo install rsw
- 
-      # 获取 yarn 缓存路径
-      - name: Get yarn cache directory path
-        id: yarn-cache-dir-path
-        run: echo "::set-output name=dir::$(yarn config get cacheFolder)"
- 
-      # 使用 yarn 缓存
-      - name: Yarn cache
-        uses: actions/cache@v3
-        id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
-        with:
-          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-yarn-
  
       # 安装依赖执行构建，以及推送 github release
       - name: Install app dependencies and build it
