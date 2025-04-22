@@ -185,6 +185,9 @@ jobs:
               if [ -f "deb/AI 学院_0.1.0_amd64.deb" ]; then
                 mv "deb/AI 学院_0.1.0_amd64.deb" "deb/app_0.1.0_amd64.deb"
               fi
+              if [ -f "rpm/AI 学院-0.1.0-1.x86_64.rpm" ]; then
+                mv "rpm/AI 学院-0.1.0-1.x86_64.rpm" "rpm/app-0.1.0-1.x86_64.rpm"
+              fi
               if [ -f "appimage/AI 学院_0.1.0_amd64.AppImage" ]; then
                 mv "appimage/AI 学院_0.1.0_amd64.AppImage" "appimage/app_0.1.0_amd64.AppImage"
               fi
@@ -195,6 +198,9 @@ jobs:
             else
               if [ -f "deb/AI 学院_0.1.0_amd64.deb" ]; then
                 mv "deb/AI 学院_0.1.0_amd64.deb" "deb/app_0.1.0_arm64.deb"
+              fi
+              if [ -f "rpm/AI 学院-0.1.0-1.x86_64.rpm" ]; then
+                mv "rpm/AI 学院-0.1.0-1.x86_64.rpm" "rpm/app-0.1.0-1.aarch64.rpm"
               fi
               if [ -f "appimage/AI 学院_0.1.0_amd64.AppImage" ]; then
                 mv "appimage/AI 学院_0.1.0_amd64.AppImage" "appimage/app_0.1.0_arm64.AppImage"
@@ -239,10 +245,14 @@ jobs:
           elif [ "${{ matrix.platform }}" == "ubuntu-latest" ]; then
             if [ "${{ matrix.arch }}" == "x64" ]; then
               [ -f "deb/app_0.1.0_amd64.deb" ] && echo "app_0.1.0_amd64.deb exists" || echo "app_0.1.0_amd64.deb does not exist"
+              [ -f "rpm/app-0.1.0-1.x86_64.rpm" ] && echo "app-0.1.0-1.x86_64.rpm exists" || echo "app-0.1.0-1.x86_64.rpm does not exist"
               [ -f "appimage/app_0.1.0_amd64.AppImage" ] && echo "app_0.1.0_amd64.AppImage exists" || echo "app_0.1.0_amd64.AppImage does not exist"
+              [ -f "appimage/app_0.1.0_amd64.AppImage.tar.gz" ] && echo "app_0.1.0_amd64.AppImage.tar.gz exists" || echo "app_0.1.0_amd64.AppImage.tar.gz does not exist"
             else
               [ -f "deb/app_0.1.0_arm64.deb" ] && echo "app_0.1.0_arm64.deb exists" || echo "app_0.1.0_arm64.deb does not exist"
+              [ -f "rpm/app-0.1.0-1.aarch64.rpm" ] && echo "app-0.1.0-1.aarch64.rpm exists" || echo "app-0.1.0-1.aarch64.rpm does not exist"
               [ -f "appimage/app_0.1.0_arm64.AppImage" ] && echo "app_0.1.0_arm64.AppImage exists" || echo "app_0.1.0_arm64.AppImage does not exist"
+              [ -f "appimage/app_0.1.0_arm64.AppImage.tar.gz" ] && echo "app_0.1.0_arm64.AppImage.tar.gz exists" || echo "app_0.1.0_arm64.AppImage.tar.gz does not exist"
             fi
           fi
       - uses: tauri-apps/tauri-action@v0.3
