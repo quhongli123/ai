@@ -46,7 +46,10 @@ jobs:
       fail-fast: false
       matrix:
         platform: [macos-latest, ubuntu-latest]
- 
+        include:
+          - platform: macos-latest
+            arch: [x64, arm64]
+
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v2
@@ -154,24 +157,28 @@ jobs:
         run: pnpm install && pnpm pubhome
 
       - name: Rename artifacts
+        shell: bash
         run: |
           cd src-tauri/target/release/bundle
           if [ "${{ matrix.platform }}" == "macos-latest" ]; then
             # macOS 重命名
-            mv "macos/AI 学院.app" "macos/app.app"
-            mv "dmg/AI 学院_0.1.0_aarch64.dmg" "dmg/app_0.1.0_arm64.dmg"
-            cd macos
-            tar -czf app.app.tar.gz app.app
+            if [ -d "dmg" ]; then
+              cd dmg
+              for f in *.dmg; do
+                if [[ $f == *"aarch64"* ]]; then
+                  mv "$f" "${f/aarch64/arm64}"
+                fi
+                tar -czf "${f}.tar.gz" "$f"
+              done
+            fi
           elif [ "${{ matrix.platform }}" == "ubuntu-latest" ]; then
             # Linux 重命名
-            mv "deb/AI 学院_0.1.0_amd64.deb" "deb/app_0.1.0_amd64.deb"
-            mv "appimage/AI 学院_0.1.0_amd64.AppImage" "appimage/app_0.1.0_amd64.AppImage"
-            cd appimage
-            tar -czf app_0.1.0_amd64.AppImage.tar.gz app_0.1.0_amd64.AppImage
-          elif [ "${{ matrix.platform }}" == "windows-latest" ]; then
-            # Windows 重命名
-            mv "msi/AI 学院_0.1.0_x64_en-US.msi" "msi/app_0.1.0_x64_en-US.msi"
-            mv "nsis/AI 学院_0.1.0_x64-setup.exe" "nsis/app_0.1.0_x64-setup.exe"
+            if [ -d "appimage" ]; then
+              cd appimage
+              for f in *.AppImage; do
+                tar -czf "${f}.tar.gz" "$f"
+              done
+            fi
           fi
 
       - uses: tauri-apps/tauri-action@v0.3
@@ -180,3 +187,9 @@ jobs:
         with:
           releaseId: ${{ needs.create-release.outputs.RELEASE_UPLOAD_ID }}
           includeDebugArtifacts: true
+          args: --target universal-apple-darwin
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Release ${{ github.ref_name }}'
+          releaseBody: '请查看附件下载对应平台的安装包'
+          releaseDraft: false
+          prerelease: false
