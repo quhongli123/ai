@@ -39,7 +39,6 @@ jobs:
           draft: false
           prerelease: false
  
-  
   # 编译 Tauri
   build-tauri:
     needs: create-release
