@@ -2,13 +2,12 @@
  * @Author: 曲洪利 quhongli999@163.com
  * @Date: 2025-04-22 13:44:49
  * @LastEditors: 曲洪利 quhongli999@163.com
- * @LastEditTime: 2025-04-22 13:49:30
+ * @LastEditTime: 2025-04-22 14:03:36
  * @FilePath: /ai/src/components/PageLayout/index.tsx
  * @Description: 
  * 
  * Copyright (c) 2025 by ${git_name_email}, All Rights Reserved. 
  */
-import { ArrowBack } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import styles from './index.module.less';
 import BackButton from '../BackButton';
