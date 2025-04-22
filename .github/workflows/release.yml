@@ -44,10 +44,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, ubuntu-latest]
+        platform: [macos-latest, ubuntu-latest,aarch64,armv7l]
         include:
           - platform: ubuntu-latest
             target: aarch64-unknown-linux-gnu
+          - platform: aarch64
+            target: aarch64-unknown-linux-gnu
+          - platform: armv7l
+            target: arm-unknown-linux-gnueabihf
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -99,18 +103,35 @@ jobs:
           sudo cp /etc/apt/sources.list /etc/apt/sources.list.backup
           # 配置 amd64 和 arm64 架构的软件源
           sudo tee /etc/apt/sources.list > /dev/null <<EOT
+          # AMD64 架构
           deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse
           deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ noble-updates main restricted universe multiverse
           deb [arch=amd64] http://archive.ubuntu.com/ubuntu/ noble-backports main restricted universe multiverse
           deb [arch=amd64] http://security.ubuntu.com/ubuntu/ noble-security main restricted universe multiverse
           
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-updates main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-backports main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-security main restricted universe multiverse
+          # ARM64 架构
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ noble main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ noble-updates main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ noble-backports main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ noble-security main restricted universe multiverse
           EOT
           
+          # 配置镜像源优先级
+          sudo tee /etc/apt/preferences.d/99architectures > /dev/null <<EOT
+          Package: *
+          Pin: release a=arm64
+          Pin-Priority: 1000
+          
+          Package: *
+          Pin: release a=amd64
+          Pin-Priority: 1000
+          EOT
+          
+          # 清理并更新
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
           sudo apt-get update
+          
           sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
           sudo apt-get install -y pkg-config
           # 安装 qemu 支持
