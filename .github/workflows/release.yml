@@ -92,9 +92,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libappindicator3-dev librsvg2-dev patchelf libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev
           # 设置 PKG_CONFIG_PATH
-          echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" >> $GITHUB_ENV
           # 验证 pkg-config 设置
           pkg-config --list-all | grep javascriptcoregtk
+          # 安装 ARM 交叉编译工具链
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          # 设置交叉编译环境变量
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++" >> $GITHUB_ENV
       - name: install dependencies (windows only)
         if: matrix.platform == 'windows-latest'
         run: |
@@ -147,6 +153,14 @@ jobs:
  
       # 安装依赖执行构建，以及推送 github release
       - name: Install app dependencies and build it
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          pnpm install
+          # 添加 ARM 目标
+          rustup target add aarch64-unknown-linux-gnu
+          # 使用 ARM 架构构建
+          pnpm pubhome --target aarch64-unknown-linux-gnu
+        if: matrix.platform == 'macos-latest'
         run: pnpm install && pnpm pubhome
 
       - name: Rename artifacts
@@ -159,9 +173,9 @@ jobs:
             cd macos
             tar -czf app.app.tar.gz app.app
           elif [ "${{ matrix.platform }}" == "ubuntu-latest" ]; then
-            # Linux 重命名
-            mv "deb/AI 学院_0.1.0_arm64.deb" "deb/app_0.1.0_arm64.deb"
-            mv "appimage/AI 学院_0.1.0_arm64.AppImage" "appimage/app_0.1.0_arm64.AppImage"
+            # Linux 重命名（ARM 架构）
+            mv "deb/AI 学院_0.1.0_aarch64.deb" "deb/app_0.1.0_arm64.deb"
+            mv "appimage/AI 学院_0.1.0_aarch64.AppImage" "appimage/app_0.1.0_arm64.AppImage"
             cd appimage
             tar -czf app_0.1.0_arm64.AppImage.tar.gz app_0.1.0_arm64.AppImage
           elif [ "${{ matrix.platform }}" == "windows-latest" ]; then
