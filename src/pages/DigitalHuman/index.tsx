@@ -2,24 +2,24 @@
  * @Author: 曲洪利 quhongli999@163.com
  * @Date: 2025-04-18 19:11:22
  * @LastEditors: 曲洪利 quhongli999@163.com
- * @LastEditTime: 2025-04-19 11:41:30
- * @FilePath: /AI/src/pages/DigitalHuman/index.tsx
- * @Description:
- *
- * Copyright (c) 2025 by ${git_name_email}, All Rights Reserved.
+ * @LastEditTime: 2025-04-22 14:02:44
+ * @FilePath: /ai/src/pages/DigitalHuman/index.tsx
+ * @Description: 
+ * 
+ * Copyright (c) 2025 by ${git_name_email}, All Rights Reserved. 
  */
-import { Box, Typography } from '@mui/material';
+import { Box } from '@mui/material';
 import { styled } from '@mui/material/styles';
-const GradientBackground = styled(Box)({
-  background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
-  minHeight: '100vh',
-  padding: '30px 0',
-});
+import PageLayout from '@/components/PageLayout';
+
+
 const IframeContainer = styled(Box)({
   width: '97%',
-  height: 'calc(100vh - 180px)',
+  height: 'calc(100vh - 100px)',
+  background:'red',
+  backgroundColor: 'red',
   borderRadius: '16px',
-  margin: '0 auto',
+  margin: '20px auto 0px auto',
   overflow: 'hidden',
   boxShadow: '0 4px 24px rgba(0, 0, 0, 0.1)',
   backgroundColor: '#fff',
@@ -27,39 +27,28 @@ const IframeContainer = styled(Box)({
   '& iframe': {
     width: '100%',
     height: '100%',
+      
 
     border: 'none',
     position: 'absolute',
     top: 0,
     left: 0,
-  },
+  }
 });
 
-const DigitalHuman = () => {
+const DigitalHuman: React.FC = () => {
   return (
-    <GradientBackground>
-      <Typography
-        variant="h4"
-        component="h1"
-        sx={{
-          textAlign: 'center',
-          color: '#fff',
-          marginBottom: '40px',
-          fontWeight: 600,
-        }}
-      >
-        数字人制作
-      </Typography>
+    <PageLayout title="数字人工坊">
       <IframeContainer>
-        {/* <iframe
-          src="https://bf80d84e445b6cc97a.gradio.live/"
-          title="语音克隆工坊"
-          allow="camera;microphone"
-          loading="lazy"
-        /> */}
-      </IframeContainer>
-    </GradientBackground>
+          <iframe
+            src="https://bf80d84e445b6cc97a.gradio.live/"
+            title="数字人工坊"
+            allow="camera;microphone"
+            loading="lazy"
+          />
+        </IframeContainer>
+    </PageLayout>
   );
 };
 
-export default DigitalHuman;
+export default DigitalHuman; 

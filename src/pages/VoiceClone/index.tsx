@@ -2,25 +2,24 @@
  * @Author: 曲洪利 quhongli999@163.com
  * @Date: 2025-04-18 19:11:22
  * @LastEditors: 曲洪利 quhongli999@163.com
- * @LastEditTime: 2025-04-18 19:51:20
- * @FilePath: /work/AI/src/pages/VoiceClone/index.tsx
+ * @LastEditTime: 2025-04-22 14:03:05
+ * @FilePath: /ai/src/pages/VoiceClone/index.tsx
  * @Description: 
  * 
  * Copyright (c) 2025 by ${git_name_email}, All Rights Reserved. 
  */
-import { Box, Typography } from '@mui/material';
+import { Box } from '@mui/material';
 import { styled } from '@mui/material/styles';
-const GradientBackground = styled(Box)({
-  background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
-  minHeight: '100vh',
-  padding: '30px 0',
-  
-});
+import PageLayout from '@/components/PageLayout';
+
+
 const IframeContainer = styled(Box)({
   width: '97%',
-  height: 'calc(100vh - 180px)',
+  height: 'calc(100vh - 100px)',
+  background:'red',
+  backgroundColor: 'red',
   borderRadius: '16px',
-  margin: '0 auto',
+  margin: '20px auto 0px auto',
   overflow: 'hidden',
   boxShadow: '0 4px 24px rgba(0, 0, 0, 0.1)',
   backgroundColor: '#fff',
@@ -37,32 +36,18 @@ const IframeContainer = styled(Box)({
   }
 });
 
-const VoiceClone = () => {
+const VoiceClone: React.FC = () => {
   return (
-    <GradientBackground
-     
-    >
-      <Typography
-        variant="h4"
-        component="h1"
-        sx={{
-          textAlign: 'center',
-          color: '#fff',
-          marginBottom: '40px',
-          fontWeight: 600,
-        }}
-      >
-        语音克隆工坊
-      </Typography>
+    <PageLayout title="语音克隆工坊">
       <IframeContainer>
-        <iframe
-          src="https://4a9318c9d6c3f8b972.gradio.live"
-          title="语音克隆工坊"
-          allow="camera;microphone"
-          loading="lazy"
-        />
-      </IframeContainer>
-    </GradientBackground>
+          <iframe
+            src="https://bf80d84e445b6cc97a.gradio.live/"
+            title="语音克隆工坊"
+            allow="camera;microphone"
+            loading="lazy"
+          />
+        </IframeContainer>
+    </PageLayout>
   );
 };
 
