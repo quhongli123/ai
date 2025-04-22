@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "AI 学院",
+  "productName": "AI学院",
   "version": "0.1.0",
   "identifier": "cn.modelbest.aixueyuan",
   "build": {
@@ -13,7 +13,7 @@
   "app": {
     "windows": [
       {
-        "title": "AI 学院",
+        "title": "AI学院",
         "width": 800,
         "height": 600,
         "resizable": true,
