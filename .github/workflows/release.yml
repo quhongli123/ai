@@ -162,6 +162,9 @@ jobs:
  
       # 安装依赖执行构建，以及推送 github release
       - name: Install app dependencies and build it
+        env:
+          TAURI_APP_NAME: app
+          TAURI_APP_VERSION: ${{ steps.get_version.outputs.VERSION }}
         run: pnpm install && pnpm pubhome
 
       - name: Verify artifacts
@@ -192,9 +195,10 @@ jobs:
           releaseDraft: false
           prerelease: false
           artifactPatterns: |
-            src-tauri/target/debug/bundle/macos/*.app
-            src-tauri/target/debug/bundle/dmg/*_0.1.0_aarch64.dmg
-            src-tauri/target/debug/bundle/macos/*.app.tar.gz
-            src-tauri/target/debug/bundle/macos/*.app.tar.gz.sig
+            src-tauri/target/debug/bundle/macos/app.app
+            src-tauri/target/debug/bundle/dmg/app_0.1.0_arm64.dmg
+            src-tauri/target/debug/bundle/macos/app.app.tar.gz
+            src-tauri/target/debug/bundle/macos/app.app.tar.gz.sig
             src-tauri/target/debug/bundle/deb/*.deb
             src-tauri/target/debug/bundle/appimage/*.AppImage
+            
