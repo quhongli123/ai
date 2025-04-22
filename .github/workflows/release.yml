@@ -1,48 +1,34 @@
-name: Release CI
-
-on:
-  push:
-    tags:
-      - 'v*'
-
-jobs:
-  create-release:
-    runs-on: ubuntu-latest
-    outputs:
-      VERSION: ${{ steps.get_version.outputs.version }}
-      RELEASE_UPLOAD_ID: ${{ steps.create_release.outputs.id }}
-
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Get version from tag
-        id: get_version
-        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
-      - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: '${{ steps.get_version.outputs.version }}'
-          release_name: 'app ${{ steps.get_version.outputs.version }}'
-          body: 'See the assets to download this version and install.'
-          draft: false
-          prerelease: false
-
   build-tauri:
     needs: create-release
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, ubuntu-latest]
-        arch: [x64, arm64]  # 添加架构区分
+        include:
+          - platform: macos-latest
+            arch: amd64
+            runner: macos-latest
+            target: x86_64-apple-darwin
+          - platform: macos-arm64
+            arch: arm64
+            runner: macos-14
+            target: aarch64-apple-darwin
+          - platform: ubuntu-latest
+            arch: amd64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - platform: ubuntu-arm64
+            arch: arm64
+            runner: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
 
-    runs-on: ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - uses: actions/checkout@v2
+
+      - name: Query version number
+        id: get_version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
@@ -56,100 +42,75 @@ jobs:
           node-version: 20
           cache: 'pnpm'
 
-      - name: Setup Rust
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install Rust stable
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          override: true
+          target: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v1
 
-      - name: Install platform-specific dependencies
-        if: matrix.platform == 'ubuntu-latest'
+      - name: Install cross (for Linux arm64)
+        if: matrix.arch == 'arm64' && matrix.runner == 'ubuntu-latest'
+        run: cargo install cross
+
+      - name: Install dependencies (Linux only)
+        if: matrix.runner == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libappindicator3-dev librsvg2-dev patchelf libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev
           echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" >> $GITHUB_ENV
 
-      - name: Install Windows dependencies
-        if: matrix.platform == 'windows-latest'
+      - name: Install app dependencies and build
+        run: pnpm install
+
+      - name: Build Tauri app
         run: |
-          $WIX_PATH = "C:\wix"
-          Invoke-WebRequest -Uri "https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip" -OutFile "$WIX_PATH\wix.zip"
-          Expand-Archive -Path "$WIX_PATH\wix.zip" -DestinationPath $WIX_PATH
-          echo "$WIX_PATH" | Out-File -Append -FilePath $env:GITHUB_PATH
-          echo "WIX=$WIX_PATH" >> $env:GITHUB_ENV
-          echo "TAURI_WIX_DIR=$WIX_PATH" >> $env:GITHUB_ENV
+          if [ "${{ matrix.runner }}" == "ubuntu-latest" ] && [ "${{ matrix.arch }}" == "arm64" ]; then
+            cross build --release --target=${{ matrix.target }}
+          else
+            pnpm tauri build --target ${{ matrix.target }}
+          fi
 
-      - name: Build frontend
-        run: pnpm install && pnpm pubhome
-
-      - name: Build Tauri App
-        run: pnpm tauri build
-
-      - name: Rename & package artifacts
+      - name: Rename and archive artifacts
         run: |
-          VERSION="${{ needs.create-release.outputs.VERSION }}"
-          
-          # List contents before packaging
-          echo "Listing contents of build output:"
-          ls -R src-tauri/target/release/bundle
+          VERSION=${{ steps.get_version.outputs.version }}
+          APP_NAME="AI 学院"
+          cd src-tauri/target/${{ matrix.target }}/release/bundle || cd src-tauri/target/release/bundle
 
-          cd src-tauri/target/release/bundle
+          # macOS
+          if [[ "${{ matrix.target }}" == *"apple-darwin" ]]; then
+            mkdir -p artifacts
+            find dmg -name "*.dmg" -exec cp {} artifacts/app_${VERSION}_${{ matrix.arch }}.dmg \;
+            find macos -name "*.app" -exec tar -czf artifacts/app_${VERSION}_${{ matrix.arch }}.app.tar.gz {} \;
 
-          # Rename .dmg or .app files for macOS
-          if [ -d "macos" ]; then
-            for app in macos/*.app; do
-              echo "Processing $app"
-              mv "$app" "macos/app.app"
-              cd macos && tar -czf app.app.tar.gz app.app && cd ..
-            done
+          # Linux
+          elif [[ "${{ matrix.target }}" == *"linux-gnu" ]]; then
+            mkdir -p artifacts
+            find deb -name "*.deb" -exec cp {} artifacts/app_${VERSION}_${{ matrix.arch }}.deb \;
+            find appimage -name "*.AppImage" -exec tar -czf artifacts/app_${VERSION}_${{ matrix.arch }}.AppImage.tar.gz {} \;
+
           fi
 
-          # Rename dmg files for macOS (with architecture distinction)
-          if [ -d "dmg" ]; then
-            for file in dmg/*.dmg; do
-              echo "Processing $file"
-              arch="${{ matrix.arch }}"
-              mv "$file" "dmg/app_${VERSION}_${arch}.dmg"
-            done
-          fi
-
-          # Rename Linux artifacts with architecture distinction
-          if [ -d "appimage" ]; then
-            for file in appimage/*.AppImage; do
-              arch="${{ matrix.arch }}"
-              mv "$file" "appimage/app_${VERSION}_${arch}.AppImage"
-              cd appimage && tar -czf app_${VERSION}_${arch}.AppImage.tar.gz app_${VERSION}_${arch}.AppImage && cd ..
-            done
-          fi
-
-          if [ -d "deb" ]; then
-            for file in deb/*.deb; do
-              arch="${{ matrix.arch }}"
-              mv "$file" "deb/app_${VERSION}_${arch}.deb"
-            done
-          fi
-
-          # Rename Windows artifacts
-          if [ -d "msi" ]; then
-            mv msi/*.msi msi/app_${VERSION}_${matrix.arch}.msi || true
-          fi
-          if [ -d "nsis" ]; then
-            mv nsis/*.exe nsis/app_${VERSION}_${matrix.arch}-setup.exe || true
-          fi
-
-          echo "Artifacts after rename:"
-          find src-tauri/target/release/bundle -type f
-
-      - name: List files before upload
-        run: |
-          echo "Files before upload:"
-          find src-tauri/target/release/bundle -type f
-
-      - name: Upload Artifacts to Release
+      - name: Upload to GitHub Release
         uses: tauri-apps/tauri-action@v0.3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           releaseId: ${{ needs.create-release.outputs.RELEASE_UPLOAD_ID }}
+          includeDebugArtifacts: true
+          releaseDraft: false
+          prerelease: false
+          publish: true
