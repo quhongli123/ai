@@ -162,10 +162,9 @@ jobs:
  
       # 安装依赖执行构建，以及推送 github release
       - name: Install app dependencies and build it
-        env:
-          TAURI_APP_NAME: app
-          TAURI_APP_VERSION: ${{ steps.get_version.outputs.VERSION }}
-        run: pnpm install && pnpm pubhome
+        run: |
+          pnpm install
+          TAURI_APP_NAME=app TAURI_APP_VERSION=${{ steps.get_version.outputs.VERSION }} pnpm pubhome
 
       - name: Verify artifacts
         run: |
