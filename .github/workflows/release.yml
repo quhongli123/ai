@@ -3,7 +3,7 @@ name: Release CI
 on:
   push:
     tags:
-      - 'v*' # e.g., v1.0.0
+      - 'v*'
 
 jobs:
   create-release:
@@ -13,22 +13,26 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+
       - name: Query version number
         id: get_version
-        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-      - name: Create GitHub Release
+        run: |
+          echo "using version tag ${GITHUB_REF:10}"
+          echo "version=${GITHUB_REF:10}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
         id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: '${{ steps.get_version.outputs.version }}'
-          release_name: 'App ${{ steps.get_version.outputs.version }}'
-          body: 'See the assets to download this version.'
+          release_name: 'app ${{ steps.get_version.outputs.version }}'
+          body: 'See the assets to download this version and install.'
           draft: false
           prerelease: false
 
-    build-tauri:
+  build-tauri:
     needs: create-release
     strategy:
       fail-fast: false
@@ -37,11 +41,11 @@ jobs:
         arch: [amd64, arm64]
         include:
           - runner: macos-latest
-            arch: arm64
-            target: aarch64-apple-darwin
-          - runner: macos-latest
             arch: amd64
             target: x86_64-apple-darwin
+          - runner: macos-latest
+            arch: arm64
+            target: aarch64-apple-darwin
           - runner: ubuntu-latest
             arch: amd64
             target: x86_64-unknown-linux-gnu
@@ -63,15 +67,15 @@ jobs:
           version: 8
           run_install: true
 
-      - name: Setup node
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 20
           cache: 'pnpm'
 
       - name: Get pnpm store directory
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
       - name: Setup pnpm cache
         uses: actions/cache@v3
         with:
@@ -80,7 +84,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - name: Install Rust stable
+      - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -95,7 +99,7 @@ jobs:
           sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libappindicator3-dev librsvg2-dev patchelf libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev
           echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" >> $GITHUB_ENV
 
-      - name: Install dependencies and build app
+      - name: Install dependencies and build
         run: |
           if [ "${{ matrix.runner }}" = "ubuntu-latest" ] && [ "${{ matrix.arch }}" = "arm64" ]; then
             cargo install cross
@@ -107,7 +111,7 @@ jobs:
 
       - name: Rename artifacts
         run: |
-          cd src-tauri/target/${{ matrix.target }}/release/bundle
+          cd target/${{ matrix.target }}/release/bundle
           if [ -d "appimage" ]; then
             mv appimage/*.AppImage appimage/app_${{ matrix.arch }}.AppImage
             cd appimage && tar -czf app_${{ matrix.arch }}.AppImage.tar.gz app_${{ matrix.arch }}.AppImage
