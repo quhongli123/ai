@@ -54,7 +54,7 @@ jobs:
             arch: arm64
           - platform: ubuntu-latest
             target: armv7-unknown-linux-gnueabihf
-        arch: armhf
+            arch: armhf
 
     runs-on: ${{ matrix.platform }}
     steps:
