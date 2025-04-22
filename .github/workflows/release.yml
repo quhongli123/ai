@@ -45,27 +45,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, ubuntu-latest, aarch64, armv7l]
+        platform: [macos-latest, ubuntu-latest]
         include:
           - platform: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             arch: amd64
-          - platform: aarch64
-            target: aarch64-unknown-linux-gnu
-            arch: aarch64
-            cpu: cortex-a72
-            base_image: https://dietpi.com/downloads/images/DietPi_RPi5-ARMv8-Bookworm.img.xz
-            deb: arm64
-            rpm: aarch64
-            appimage: aarch64
-          - platform: armv7l
-            target: armv7-unknown-linux-gnueabihf
-            arch: armv7l
-            cpu: cortex-a53
-            deb: armhfp
-            rpm: arm
-            appimage: armhf
-            base_image: https://dietpi.com/downloads/images/DietPi_RPi-ARMv7-Bookworm.img.xz
 
     runs-on: ${{ matrix.platform }}
     steps:
