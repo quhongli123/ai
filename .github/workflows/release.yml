@@ -182,39 +182,39 @@ jobs:
             if [ "${{ matrix.target }}" == "x86_64" ]; then
               # 使用通配符匹配文件
               if ls macos/AI学院.app >/dev/null 2>&1; then
-                mv "macos/AI学院.app" "macos/app.app"
+                mv "macos/AI学院.app" "macos/AI学院_x86_64.app"
               else
                 echo "Error: macos/AI学院.app not found"
                 ls -la macos/
                 exit 1
               fi
               if ls dmg/AI学院_0.1.0_aarch64.dmg >/dev/null 2>&1; then
-                mv "dmg/AI学院_0.1.0_aarch64.dmg" "dmg/app_0.1.0_arm64.dmg"
+                mv "dmg/AI学院_0.1.0_aarch64.dmg" "dmg/AI学院_0.1.0_x86_64.dmg"
               else
                 echo "Error: dmg/AI学院_0.1.0_aarch64.dmg not found"
                 ls -la dmg/
                 exit 1
               fi
               cd macos
-              tar -czf app.app.tar.gz "app.app"
+              tar -czf AI学院_x86_64.app.tar.gz "AI学院_x86_64.app"
             else
               # 使用通配符匹配文件
               if ls macos/AI学院.app >/dev/null 2>&1; then
-                mv "macos/AI学院.app" "macos/app.app"
+                mv "macos/AI学院.app" "macos/AI学院_arm64.app"
               else
                 echo "Error: macos/AI学院.app not found"
                 ls -la macos/
                 exit 1
               fi
               if ls dmg/AI学院_0.1.0_aarch64.dmg >/dev/null 2>&1; then
-                mv "dmg/AI学院_0.1.0_aarch64.dmg" "dmg/app_0.1.0_arm64.dmg"
+                mv "dmg/AI学院_0.1.0_aarch64.dmg" "dmg/AI学院_0.1.0_arm64.dmg"
               else
                 echo "Error: dmg/AI学院_0.1.0_aarch64.dmg not found"
                 ls -la dmg/
                 exit 1
               fi
               cd macos
-              tar -czf app.app.tar.gz "app.app"
+              tar -czf AI学院_arm64.app.tar.gz "AI学院_arm64.app"
             fi
           elif [ "${{ matrix.platform }}" == "ubuntu-latest" ]; then
             echo "Listing deb directory:"
@@ -226,39 +226,39 @@ jobs:
             if [ "${{ matrix.target }}" == "x86_64" ]; then
               # 使用通配符匹配文件
               if ls deb/AI学院_0.1.0_amd64.deb >/dev/null 2>&1; then
-                mv "deb/AI学院_0.1.0_amd64.deb" "deb/app_0.1.0_amd64.deb"
+                mv "deb/AI学院_0.1.0_amd64.deb" "deb/AI学院_0.1.0_amd64.deb"
               else
                 echo "Error: deb/AI学院_0.1.0_amd64.deb not found"
                 ls -la deb/
                 exit 1
               fi
               if ls appimage/AI学院_0.1.0_amd64.AppImage >/dev/null 2>&1; then
-                mv "appimage/AI学院_0.1.0_amd64.AppImage" "appimage/app_0.1.0_amd64.AppImage"
+                mv "appimage/AI学院_0.1.0_amd64.AppImage" "appimage/AI学院_0.1.0_amd64.AppImage"
               else
                 echo "Error: appimage/AI学院_0.1.0_amd64.AppImage not found"
                 ls -la appimage/
                 exit 1
               fi
               cd appimage
-              tar -czf app_0.1.0_amd64.AppImage.tar.gz "app_0.1.0_amd64.AppImage"
+              tar -czf AI学院_0.1.0_amd64.AppImage.tar.gz "AI学院_0.1.0_amd64.AppImage"
             else
               # 使用通配符匹配文件
               if ls deb/AI学院_0.1.0_arm64.deb >/dev/null 2>&1; then
-                mv "deb/AI学院_0.1.0_arm64.deb" "deb/app_0.1.0_arm64.deb"
+                mv "deb/AI学院_0.1.0_arm64.deb" "deb/AI学院_0.1.0_arm64.deb"
               else
                 echo "Error: deb/AI学院_0.1.0_arm64.deb not found"
                 ls -la deb/
                 exit 1
               fi
               if ls appimage/AI学院_0.1.0_arm64.AppImage >/dev/null 2>&1; then
-                mv "appimage/AI学院_0.1.0_arm64.AppImage" "appimage/app_0.1.0_arm64.AppImage"
+                mv "appimage/AI学院_0.1.0_arm64.AppImage" "appimage/AI学院_0.1.0_arm64.AppImage"
               else
                 echo "Error: appimage/AI学院_0.1.0_arm64.AppImage not found"
                 ls -la appimage/
                 exit 1
               fi
               cd appimage
-              tar -czf app_0.1.0_arm64.AppImage.tar.gz "app_0.1.0_arm64.AppImage"
+              tar -czf AI学院_0.1.0_arm64.AppImage.tar.gz "AI学院_0.1.0_arm64.AppImage"
             fi
           fi
           
