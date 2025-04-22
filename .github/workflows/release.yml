@@ -105,13 +105,39 @@ jobs:
           $WIX_VERSION = "3.14.0"
           $WIX_URL = "https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip"
           $WIX_PATH = "C:\wix"
-          New-Item -ItemType Directory -Force -Path $WIX_PATH
+          
+          # 确保目录存在
+          if (-not (Test-Path $WIX_PATH)) {
+              New-Item -ItemType Directory -Force -Path $WIX_PATH
+          }
+          
+          # 下载并解压 WiX
+          $ProgressPreference = 'SilentlyContinue'
           Invoke-WebRequest -Uri $WIX_URL -OutFile "$WIX_PATH\wix.zip"
-          Expand-Archive -Path "$WIX_PATH\wix.zip" -DestinationPath $WIX_PATH
+          Expand-Archive -Path "$WIX_PATH\wix.zip" -DestinationPath $WIX_PATH -Force
+          
+          # 设置环境变量
           $env:PATH = "$WIX_PATH;$env:PATH"
+          $env:WIX = $WIX_PATH
+          
           # 验证安装
-          candle.exe -version
-          light.exe -version
+          Write-Host "Verifying WiX installation..."
+          if (Test-Path "$WIX_PATH\candle.exe") {
+              Write-Host "candle.exe found at $WIX_PATH\candle.exe"
+              & "$WIX_PATH\candle.exe" -version
+          } else {
+              Write-Error "candle.exe not found"
+          }
+          
+          if (Test-Path "$WIX_PATH\light.exe") {
+              Write-Host "light.exe found at $WIX_PATH\light.exe"
+              & "$WIX_PATH\light.exe" -version
+          } else {
+              Write-Error "light.exe not found"
+          }
+          
+          # 设置 Tauri 的 WiX 路径
+          $env:TAURI_WIX_DIR = $WIX_PATH
 
       # 可选，如果需要将 Rust 编译为 wasm，则安装 wasm-pack
       - uses: jetli/wasm-pack-action@v0.3.0
