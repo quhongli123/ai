@@ -47,11 +47,6 @@ jobs:
       matrix:
         platform: [macos-latest, ubuntu-latest]
         arch: [x64, arm64]
-        exclude:
-          - platform: macos-latest
-            arch: x64
-          - platform: ubuntu-latest
-            arch: arm64
  
     runs-on: ${{ matrix.platform }}
     steps:
@@ -161,10 +156,17 @@ jobs:
           cd src-tauri/target/release/bundle
           if [ "${{ matrix.platform }}" == "macos-latest" ]; then
             # macOS 重命名
-            mv "macos/AI 学院.app" "macos/app.app"
-            mv "dmg/AI 学院_0.1.0_aarch64.dmg" "dmg/app_0.1.0_arm64.dmg"
-            cd macos
-            tar -czf app.app.tar.gz app.app
+            if [ "${{ matrix.arch }}" == "x64" ]; then
+              mv "macos/AI 学院.app" "macos/app_x64.app"
+              mv "dmg/AI 学院_0.1.0_x64.dmg" "dmg/app_0.1.0_x64.dmg"
+              cd macos
+              tar -czf app_x64.app.tar.gz app_x64.app
+            else
+              mv "macos/AI 学院.app" "macos/app_arm64.app"
+              mv "dmg/AI 学院_0.1.0_aarch64.dmg" "dmg/app_0.1.0_arm64.dmg"
+              cd macos
+              tar -czf app_arm64.app.tar.gz app_arm64.app
+            fi
           elif [ "${{ matrix.platform }}" == "ubuntu-latest" ]; then
             # Linux 重命名
             if [ "${{ matrix.arch }}" == "x64" ]; then
