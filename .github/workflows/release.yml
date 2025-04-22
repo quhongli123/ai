@@ -160,6 +160,7 @@ jobs:
           rustup target add aarch64-unknown-linux-gnu
           # 使用 ARM 架构构建
           pnpm pubhome --target aarch64-unknown-linux-gnu
+      - name: Install app dependencies and build it
         if: matrix.platform == 'macos-latest'
         run: pnpm install && pnpm pubhome
 
