@@ -167,33 +167,96 @@ jobs:
       - name: Rename artifacts
         run: |
           cd src-tauri/target/release/bundle
+          # 添加调试信息
+          echo "Current directory: $(pwd)"
+          echo "Listing macos directory:"
+          ls -la macos/
+          echo "Listing dmg directory:"
+          ls -la dmg/
+          
           if [ "${{ matrix.platform }}" == "macos-latest" ]; then
             # macOS 重命名
             if [ "${{ matrix.target }}" == "x86_64" ]; then
-              mv "macos/AI学院.app" "macos/app_x86_64.app"
-              mv "dmg/AI学院_0.1.0_aarch64.dmg" "dmg/app_0.1.0_x86_64.dmg"
+              # 检查文件是否存在
+              if [ -f "macos/AI学院.app" ]; then
+                mv "macos/AI学院.app" "macos/app_x86_64.app"
+              else
+                echo "Error: macos/AI学院.app not found"
+                ls -la macos/
+                exit 1
+              fi
+              if [ -f "dmg/AI学院_0.1.0_aarch64.dmg" ]; then
+                mv "dmg/AI学院_0.1.0_aarch64.dmg" "dmg/app_0.1.0_x86_64.dmg"
+              else
+                echo "Error: dmg/AI学院_0.1.0_aarch64.dmg not found"
+                ls -la dmg/
+                exit 1
+              fi
               cd macos
               tar -czf app_x86_64.app.tar.gz "app_x86_64.app"
             else
-              mv "macos/AI学院.app" "macos/app_arm64.app"
-              mv "dmg/AI学院_0.1.0_aarch64.dmg" "dmg/app_0.1.0_arm64.dmg"
+              # 检查文件是否存在
+              if [ -f "macos/AI学院.app" ]; then
+                mv "macos/AI学院.app" "macos/app_arm64.app"
+              else
+                echo "Error: macos/AI学院.app not found"
+                ls -la macos/
+                exit 1
+              fi
+              if [ -f "dmg/AI学院_0.1.0_aarch64.dmg" ]; then
+                mv "dmg/AI学院_0.1.0_aarch64.dmg" "dmg/app_0.1.0_arm64.dmg"
+              else
+                echo "Error: dmg/AI学院_0.1.0_aarch64.dmg not found"
+                ls -la dmg/
+                exit 1
+              fi
               cd macos
               tar -czf app_arm64.app.tar.gz "app_arm64.app"
             fi
           elif [ "${{ matrix.platform }}" == "ubuntu-latest" ]; then
             # Linux 重命名
             if [ "${{ matrix.target }}" == "x86_64" ]; then
-              mv "deb/AI学院_0.1.0_amd64.deb" "deb/app_0.1.0_amd64.deb"
-              mv "appimage/AI学院_0.1.0_amd64.AppImage" "appimage/app_0.1.0_amd64.AppImage"
+              # 检查文件是否存在
+              if [ -f "deb/AI学院_0.1.0_amd64.deb" ]; then
+                mv "deb/AI学院_0.1.0_amd64.deb" "deb/app_0.1.0_amd64.deb"
+              else
+                echo "Error: deb/AI学院_0.1.0_amd64.deb not found"
+                ls -la deb/
+                exit 1
+              fi
+              if [ -f "appimage/AI学院_0.1.0_amd64.AppImage" ]; then
+                mv "appimage/AI学院_0.1.0_amd64.AppImage" "appimage/app_0.1.0_amd64.AppImage"
+              else
+                echo "Error: appimage/AI学院_0.1.0_amd64.AppImage not found"
+                ls -la appimage/
+                exit 1
+              fi
               cd appimage
               tar -czf app_0.1.0_amd64.AppImage.tar.gz "app_0.1.0_amd64.AppImage"
             else
-              mv "deb/AI学院_0.1.0_arm64.deb" "deb/app_0.1.0_arm64.deb"
-              mv "appimage/AI学院_0.1.0_arm64.AppImage" "appimage/app_0.1.0_arm64.AppImage"
+              # 检查文件是否存在
+              if [ -f "deb/AI学院_0.1.0_arm64.deb" ]; then
+                mv "deb/AI学院_0.1.0_arm64.deb" "deb/app_0.1.0_arm64.deb"
+              else
+                echo "Error: deb/AI学院_0.1.0_arm64.deb not found"
+                ls -la deb/
+                exit 1
+              fi
+              if [ -f "appimage/AI学院_0.1.0_arm64.AppImage" ]; then
+                mv "appimage/AI学院_0.1.0_arm64.AppImage" "appimage/app_0.1.0_arm64.AppImage"
+              else
+                echo "Error: appimage/AI学院_0.1.0_arm64.AppImage not found"
+                ls -la appimage/
+                exit 1
+              fi
               cd appimage
               tar -czf app_0.1.0_arm64.AppImage.tar.gz "app_0.1.0_arm64.AppImage"
             fi
           fi
+          
+          # 验证重命名后的文件
+          echo "Verifying renamed files:"
+          ls -la macos/ dmg/ deb/ appimage/ || true
       - uses: tauri-apps/tauri-action@v0.3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
