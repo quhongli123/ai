@@ -154,43 +154,64 @@ jobs:
  
       # 安装依赖执行构建，以及推送 github release
       - name: Install app dependencies and build it
-        run: pnpm install && pnpm pubhome
-
-      - name: Rename artifacts
-        shell: bash
         run: |
-          cd src-tauri/target/release/bundle
-          if [ "${{ matrix.platform }}" == "macos-latest" ]; then
-            # macOS 重命名
-            if [ -d "dmg" ]; then
-              cd dmg
-              for f in *.dmg; do
-                if [[ $f == *"aarch64"* ]]; then
-                  mv "$f" "${f/aarch64/arm64}"
-                fi
-                tar -czf "${f}.tar.gz" "$f"
-              done
-            fi
-          elif [ "${{ matrix.platform }}" == "ubuntu-latest" ]; then
-            # Linux 重命名
-            if [ -d "appimage" ]; then
-              cd appimage
-              for f in *.AppImage; do
-                tar -czf "${f}.tar.gz" "$f"
-              done
-            fi
-          fi
+          pnpm install
+          pnpm build
+          cargo install tauri-cli
+          cargo tauri build
 
-      - uses: tauri-apps/tauri-action@v0.3
+      - name: Build the app
+        uses: tauri-apps/tauri-action@v0.3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           releaseId: ${{ needs.create-release.outputs.RELEASE_UPLOAD_ID }}
-          includeDebugArtifacts: true
-          args: --target universal-apple-darwin
+          includeDebugArtifacts: false
+          args: |
+            --target ${{ matrix.platform == 'macos-latest' && 'universal-apple-darwin' || '' }}
           tagName: ${{ github.ref_name }}
           releaseName: 'Release ${{ github.ref_name }}'
           releaseBody: '请查看附件下载对应平台的安装包'
           releaseDraft: false
           prerelease: false
-          publish: true
+
+      - name: Prepare artifacts
+        if: matrix.platform == 'macos-latest'
+        run: |
+          cd src-tauri/target/release/bundle
+          echo "Current directory contents:"
+          ls -la
+          if [ -d "dmg" ]; then
+            cd dmg
+            echo "DMG directory contents:"
+            ls -la
+            for f in *.dmg; do
+              if [ -f "$f" ]; then
+                echo "Processing file: $f"
+                if [[ $f == *"aarch64"* ]]; then
+                  NEW_NAME="${f/aarch64/arm64}"
+                  echo "Renaming $f to $NEW_NAME"
+                  mv "$f" "$NEW_NAME"
+                  tar -czvf "${NEW_NAME}.tar.gz" "$NEW_NAME"
+                else
+                  echo "Creating tar.gz for $f"
+                  tar -czvf "${f}.tar.gz" "$f"
+                fi
+              fi
+            done
+          else
+            echo "DMG directory not found"
+            echo "Bundle directory contents:"
+            ls -la
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ matrix.platform }}-bundle
+          path: |
+            src-tauri/target/release/bundle/dmg/*.dmg
+            src-tauri/target/release/bundle/dmg/*.tar.gz
+            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/deb/*.deb
+          if-no-files-found: warn
