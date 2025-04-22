@@ -116,10 +116,25 @@ jobs:
             libsoup2.4-dev \
             libgstreamer1.0-dev \
             libgstreamer-plugins-base1.0-dev
-          # 设置 PKG_CONFIG_PATH
-          echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig:/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+          
+          # 设置 pkg-config 环境变量
+          if [[ "${{ matrix.platform }}" == "ubuntu-arm64" ]]; then
+            echo "PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" >> $GITHUB_ENV
+            echo "PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+            echo "PKG_CONFIG_SYSROOT_DIR=/" >> $GITHUB_ENV
+            echo "HOST_PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+            echo "HOST_PKG_CONFIG_SYSROOT_DIR=/" >> $GITHUB_ENV
+          else
+            echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" >> $GITHUB_ENV
+            echo "PKG_CONFIG_LIBDIR=/usr/lib/x86_64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+            echo "PKG_CONFIG_SYSROOT_DIR=/" >> $GITHUB_ENV
+            echo "HOST_PKG_CONFIG_LIBDIR=/usr/lib/x86_64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+            echo "HOST_PKG_CONFIG_SYSROOT_DIR=/" >> $GITHUB_ENV
+          fi
+
           # 验证 pkg-config 设置
           echo "Current PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
+          echo "Current PKG_CONFIG_LIBDIR: $PKG_CONFIG_LIBDIR"
           pkg-config --list-all | grep glib-2.0
 
       - name: Install cross (for ARM64)
