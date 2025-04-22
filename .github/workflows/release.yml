@@ -36,7 +36,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, ubuntu-latest, windows-latest]
+        platform: [macos-latest, ubuntu-latest]
         arch: [x64, arm64]  # 添加架构区分
 
     runs-on: ${{ matrix.platform }}
@@ -90,6 +90,11 @@ jobs:
       - name: Rename & package artifacts
         run: |
           VERSION="${{ needs.create-release.outputs.VERSION }}"
+          
+          # List contents before packaging
+          echo "Listing contents of build output:"
+          ls -R src-tauri/target/release/bundle
+
           cd src-tauri/target/release/bundle
 
           # Rename .dmg or .app files for macOS
@@ -135,12 +140,12 @@ jobs:
           fi
 
           echo "Artifacts after rename:"
-          find . -type f
+          find src-tauri/target/release/bundle -type f
 
       - name: List files before upload
         run: |
           echo "Files before upload:"
-          find /home/runner/work/ai/ai/src-tauri/target/release/bundle -type f
+          find src-tauri/target/release/bundle -type f
 
       - name: Upload Artifacts to Release
         uses: tauri-apps/tauri-action@v0.3
