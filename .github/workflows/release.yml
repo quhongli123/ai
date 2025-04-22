@@ -117,7 +117,10 @@ jobs:
             libgstreamer1.0-dev \
             libgstreamer-plugins-base1.0-dev
           # 设置 PKG_CONFIG_PATH
-          echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig:/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+          # 验证 pkg-config 设置
+          echo "Current PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
+          pkg-config --list-all | grep glib-2.0
 
       - name: Install cross (for ARM64)
         if: matrix.platform == 'ubuntu-arm64'
