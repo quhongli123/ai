@@ -1,13 +1,13 @@
 # 可选，将显示在 GitHub 存储库的"操作"选项卡中的工作流名称
 name: Release CI
- 
+
 # 指定此工作流的触发器
 on:
   push:
     # 匹配特定标签 (refs/tags)
     tags:
       - 'v*' # 推送事件匹配 v*, 例如 v1.0，v20.15.10 等来触发工作流
- 
+
 # 需要运行的作业组合
 jobs:
   # 任务：创建 release 版本
@@ -45,7 +45,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, ubuntu-latest]
+        platform: [macos-latest, ubuntu-latest, linux-arm64] # 增加 ARM64 架构支持
  
     runs-on: ${{ matrix.platform }}
     steps:
@@ -164,6 +164,11 @@ jobs:
             mv "appimage/AI 学院_0.1.0_amd64.AppImage" "appimage/app_0.1.0_amd64.AppImage"
             cd appimage
             tar -czf app_0.1.0_amd64.AppImage.tar.gz app_0.1.0_amd64.AppImage
+          elif [ "${{ matrix.platform }}" == "linux-arm64" ]; then
+            # ARM64 重命名
+            mv "appimage/AI 学院_0.1.0_arm64.AppImage" "appimage/app_0.1.0_arm64.AppImage"
+            cd appimage
+            tar -czf app_0.1.0_arm64.AppImage.tar.gz app_0.1.0_arm64.AppImage
           elif [ "${{ matrix.platform }}" == "windows-latest" ]; then
             # Windows 重命名
             mv "msi/AI 学院_0.1.0_x64_en-US.msi" "msi/app_0.1.0_x64_en-US.msi"
@@ -178,3 +183,4 @@ jobs:
           releaseDraft: false
           prerelease: false
           publish: true
+
