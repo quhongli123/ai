@@ -194,7 +194,7 @@ jobs:
             deb: armhfp
             rpm: arm
             appimage: armhf
-            base_image: arm32v7/debian:bookworm-slim
+            base_image: arm32v7/debian:bullseye-slim # 修复镜像不存在问题
 
     steps:
       - uses: actions/checkout@v4
