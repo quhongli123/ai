@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       RELEASE_UPLOAD_ID: ${{ steps.create_release.outputs.id }}
+      VERSION: ${{ steps.get_version.outputs.version }}
  
     steps:
       - uses: actions/checkout@v2
@@ -95,6 +96,7 @@ jobs:
           echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" >> $GITHUB_ENV
           # 验证 pkg-config 设置
           pkg-config --list-all | grep javascriptcoregtk
+
       - name: install dependencies (windows only)
         if: matrix.platform == 'windows-latest'
         run: |
@@ -178,3 +180,108 @@ jobs:
           releaseDraft: false
           prerelease: false
           publish: true
+
+  # 构建 ARM 架构版本
+  build-arm:
+    needs: create-release
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        arch: [arm64, armv7]
+        include:
+          - arch: arm64
+            platform: linux/arm64
+            deb_arch: arm64
+            appimage_arch: aarch64
+          - arch: armv7
+            platform: linux/arm/v7
+            deb_arch: armhf
+            appimage_arch: armhf
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Get app version
+        run: echo "APP_VERSION=$(jq -r .version src-tauri/tauri.conf.json)" >> $GITHUB_ENV
+
+      - name: Build ARM package using Docker
+        run: |
+          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+          
+          # 构建 Docker 镜像并执行构建
+          docker buildx build --platform ${{ matrix.platform }} \
+            --build-arg APP_VERSION=${{ env.APP_VERSION || needs.create-release.outputs.VERSION }} \
+            --output type=local,dest=./output \
+            -f- . << EOF
+          FROM --platform=${{ matrix.platform }} ubuntu:22.04
+          
+          ARG APP_VERSION
+          ENV APP_VERSION=\${APP_VERSION}
+          
+          # 安装依赖
+          RUN apt-get update && apt-get install -y \
+            curl \
+            build-essential \
+            libssl-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libfuse2 \
+            file \
+            pkg-config \
+            git \
+            jq \
+            ca-certificates
+          
+          # 安装 Rust
+          RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          ENV PATH="/root/.cargo/bin:\${PATH}"
+          
+          # 安装 Node.js
+          RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+          RUN apt-get install -y nodejs
+          
+          # 安装 pnpm
+          RUN npm install -g pnpm@8
+          
+          WORKDIR /app
+          COPY . .
+          
+          # 构建应用
+          RUN pnpm install
+          RUN pnpm run tauri build
+          
+          # 复制构建结果到输出目录
+          RUN mkdir -p /output
+          RUN cp -r src-tauri/target/release/bundle/* /output/
+          EOF
+
+      - name: Upload DEB package
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-${{ needs.create-release.outputs.VERSION }}-${{ matrix.deb_arch }}.deb
+          path: output/deb/*_${{ matrix.deb_arch }}.deb
+
+      - name: Upload AppImage package
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-${{ needs.create-release.outputs.VERSION }}-${{ matrix.appimage_arch }}.AppImage
+          path: output/appimage/*_${{ matrix.appimage_arch }}.AppImage
+
+      - name: Add artifacts to release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.create-release.outputs.VERSION }}
+          files: |
+            output/deb/*_${{ matrix.deb_arch }}.deb
+            output/appimage/*_${{ matrix.appimage_arch }}.AppImage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
