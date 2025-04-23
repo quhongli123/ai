@@ -6,76 +6,110 @@ on:
       - 'v*'
 
 jobs:
-  publish:
-    name: 'Publish Tauri App'
+  # 通用构建（macOS, Windows, Linux x64）
+  publish-tauri:
     permissions:
       contents: write
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
-            platform: macos
-            target: aarch64-apple-darwin
-            use_emulator: false
-
-          - os: macos-latest
-            platform: macos
-            target: x86_64-apple-darwin
-            use_emulator: false
-
-          - os: ubuntu-22.04
-            platform: linux
-            target: ''
-            use_emulator: false
-
-          - os: windows-latest
-            platform: windows
-            target: ''
-            use_emulator: false
-
-          - os: ubuntu-latest
-            platform: linux-arm64
-            target: aarch64-unknown-linux-gnu
-            use_emulator: true
-
-    runs-on: ${{ matrix.os }}
+          - platform: 'macos-latest'
+            args: '--target aarch64-apple-darwin'
+          - platform: 'macos-latest'
+            args: '--target x86_64-apple-darwin'
+          - platform: 'ubuntu-22.04'
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
+    runs-on: ${{ matrix.platform }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-          cache: pnpm
-
-      - name: Install pnpm
-        run: |
-          curl -fsSL https://get.pnpm.io/install.sh | sh -
-          echo "$HOME/.pnpm/bin" >> $GITHUB_PATH
-
-      - name: Install Rust
-        if: ${{ !matrix.use_emulator }}
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      - name: Rust cache
-        if: ${{ !matrix.use_emulator }}
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: './src-tauri -> target'
-
-      - name: Install Linux dependencies
-        if: ${{ runner.os == 'Linux' && !matrix.use_emulator }}
+      - name: install dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - name: Build with ARM Emulator
-        if: matrix.use_emulator
-        uses: pguyot/arm-runner-action@v2.6.5
+      - name: setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          run_install: true
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: 'pnpm'
+
+      - name: install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: install frontend dependencies
+        run: pnpm install
+
+      - name: Build Tauri App
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: ${{ matrix.args }}
+          releaseDraft: false
+          uploadArtifacts: false
+
+      - name: Upload Artifacts
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          draft: true
+          prerelease: false
+          overwrite: true
+          files: |
+            src-tauri/target/**/release/bundle/**/*.dmg
+            src-tauri/target/**/release/bundle/**/*.msi
+            src-tauri/target/**/release/bundle/**/*.exe
+            src-tauri/target/**/release/bundle/**/*.AppImage
+            src-tauri/target/**/release/bundle/**/*.deb
+            src-tauri/target/**/release/bundle/**/*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Linux ARM64 构建
+  publish-linux-arm64:
+    name: Build Linux ARM64 (AppImage)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf curl
+
+      - name: setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: 'pnpm'
+
+      - name: build in ARM emulator
+        uses: pguyot/arm-runner-action@v2
         with:
           base_image: debian:bullseye
           cpu: cortex-a72
@@ -86,32 +120,20 @@ jobs:
             apt-get install -y curl libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
             curl https://sh.rustup.rs -sSf | sh -s -- -y
             export PATH="$HOME/.cargo/bin:$PATH"
-            rustup target add ${{ matrix.target }}
+            rustup target add aarch64-unknown-linux-gnu
             pnpm install
             cd src-tauri
-            pnpm tauri build --target ${{ matrix.target }}
+            pnpm tauri build --target aarch64-unknown-linux-gnu
 
-      - name: Build Tauri App
-        if: ${{ !matrix.use_emulator }}
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          args: ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
-          releaseDraft: false
-          uploadArtifacts: false
-
-      - name: Upload Artifacts
+      - name: Upload ARM64 Artifacts
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
           draft: true
+          prerelease: false
           overwrite: true
           files: |
-            src-tauri/target/**/release/bundle/**/*.dmg
-            src-tauri/target/**/release/bundle/**/*.msi
-            src-tauri/target/**/release/bundle/**/*.exe
-            src-tauri/target/**/release/bundle/**/*.AppImage
-            src-tauri/target/**/release/bundle/**/*.deb
+            src-tauri/target/aarch64-unknown-linux-gnu/release/bundle/**/*.AppImage
+            src-tauri/target/aarch64-unknown-linux-gnu/release/bundle/**/*.deb
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
