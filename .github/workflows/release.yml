@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.get_version.outputs.version }}
+
     steps:
       - uses: actions/checkout@v3
 
@@ -18,7 +19,6 @@ jobs:
         run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
-        id: create_release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.get_version.outputs.version }}
@@ -33,11 +33,14 @@ jobs:
       matrix:
         include:
           - platform: macos-latest
-            target: macos
+            target: x86_64-apple-darwin
+            arch: amd64
           - platform: ubuntu-latest
-            target: amd64
+            target: x86_64-unknown-linux-gnu
+            arch: amd64
           - platform: ubuntu-latest
-            target: arm64
+            target: aarch64-unknown-linux-gnu
+            arch: arm64
     runs-on: ${{ matrix.platform }}
 
     steps:
@@ -52,52 +55,51 @@ jobs:
           node-version: 20
           cache: 'pnpm'
 
-      - name: Install dependencies
+      - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-latest'
         run: |
+          sudo dpkg --add-architecture arm64
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libappindicator3-dev librsvg2-dev \
-            patchelf libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev
-          if [ "${{ matrix.target }}" == "arm64" ]; then
-            sudo apt-get install -y gcc-aarch64-linux-gnu
-          fi
+          sudo apt-get install -y \
+            libgtk-3-dev:arm64 \
+            webkit2gtk-4.0:arm64 \
+            libappindicator3-dev:arm64 \
+            librsvg2-dev:arm64 \
+            patchelf \
+            libjavascriptcoregtk-4.1-dev:arm64 \
+            libwebkit2gtk-4.1-dev:arm64 \
+            gcc-aarch64-linux-gnu
 
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+          target: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v1
 
-      - name: Setup ARM toolchain
-        if: matrix.target == 'arm64'
-        run: rustup target add aarch64-unknown-linux-gnu
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.target }}
 
-      - name: Install and build
+      - name: Build application
         run: |
           pnpm install
-          if [ "${{ matrix.target }}" == "arm64" ]; then
-            export CARGO_BUILD_TARGET=aarch64-unknown-linux-gnu
-          fi
-          pnpm pubhome
+          pnpm tauri build --target ${{ matrix.target }}
 
       - name: Package artifact
         run: |
-          cd src-tauri/target/release/bundle
+          cd src-tauri/target/${{ matrix.target }}/release/bundle/
           if [ "${{ matrix.platform }}" == "macos-latest" ]; then
             cd dmg
             tar -czf app_${{ needs.create-release.outputs.version }}_macos.dmg.tar.gz *.dmg
-          elif [ "${{ matrix.target }}" == "arm64" ]; then
+          elif [ "${{ matrix.platform }}" == "ubuntu-latest" ]; then
             cd appimage
-            tar -czf app_${{ needs.create-release.outputs.version }}_linux_arm64.AppImage.tar.gz *.AppImage
-          else
-            cd appimage
-            tar -czf app_${{ needs.create-release.outputs.version }}_linux_amd64.AppImage.tar.gz *.AppImage
+            tar -czf app_${{ needs.create-release.outputs.version }}_linux_${{ matrix.arch }}.AppImage.tar.gz *.AppImage
           fi
 
       - name: Upload artifact
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            src-tauri/target/release/bundle/**/app_*.tar.gz
+            src-tauri/target/**/bundle/**/app_*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
