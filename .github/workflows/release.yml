@@ -18,14 +18,14 @@ jobs:
       VERSION: ${{ steps.get_version.outputs.version }}
  
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       # 查询版本号（tag）
       - name: Query version number
         id: get_version
         shell: bash
         run: |
           echo "using version tag ${GITHUB_REF:10}"
-          echo ::set-output name=version::"${GITHUB_REF:10}"
+          echo "version=${GITHUB_REF:10}" >> $GITHUB_OUTPUT
  
       # 根据查询到的版本号创建 release
       - name: Create Release
@@ -34,8 +34,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: '${{ steps.get_version.outputs.VERSION }}'
-          release_name: 'app ${{ steps.get_version.outputs.VERSION }}'
+          tag_name: '${{ steps.get_version.outputs.version }}'
+          release_name: 'app ${{ steps.get_version.outputs.version }}'
           body: 'See the assets to download this version and install.'
           draft: false
           prerelease: false
@@ -50,7 +50,7 @@ jobs:
  
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       # 安装 pnpm
       - name: Setup pnpm
@@ -61,7 +61,7 @@ jobs:
 
       # 安装 Node.js
       - name: Setup node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'pnpm'
@@ -80,12 +80,10 @@ jobs:
             ${{ runner.os }}-pnpm-store-
       # 安装 Rust
       - name: Install Rust stable
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
+        uses: dtolnay/rust-toolchain@stable
  
       # 使用 Rust 缓存，加快安装速度
-      - uses: Swatinem/rust-cache@v1
+      - uses: Swatinem/rust-cache@v2
  
       - name: install dependencies (ubuntu only)
         if: matrix.platform == 'ubuntu-latest'
@@ -138,10 +136,10 @@ jobs:
           # 设置 Tauri 的 WiX 路径
           $env:TAURI_WIX_DIR = $WIX_PATH
       # 可选，如果需要将 Rust 编译为 wasm，则安装 wasm-pack
-      - uses: jetli/wasm-pack-action@v0.3.0
+      - uses: jetli/wasm-pack-action@v0.4.0
         with:
           # Optional version of wasm-pack to install(eg. 'v0.9.1', 'latest')
-          version: v0.9.1
+          version: latest
  
       # 可选，如果需要使用 rsw 构建 wasm，则安装 rsw
       - name: Install rsw
@@ -199,13 +197,13 @@ jobs:
             appimage_arch: armhf
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
       - name: Get app version
         run: echo "APP_VERSION=$(jq -r .version src-tauri/tauri.conf.json)" >> $GITHUB_ENV
@@ -265,13 +263,13 @@ jobs:
           EOF
 
       - name: Upload DEB package
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: app-${{ needs.create-release.outputs.VERSION }}-${{ matrix.deb_arch }}.deb
           path: output/deb/*_${{ matrix.deb_arch }}.deb
 
       - name: Upload AppImage package
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: app-${{ needs.create-release.outputs.VERSION }}-${{ matrix.appimage_arch }}.AppImage
           path: output/appimage/*_${{ matrix.appimage_arch }}.AppImage
