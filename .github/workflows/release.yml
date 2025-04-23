@@ -50,10 +50,10 @@ jobs:
           node-version: lts/*
           cache: pnpm
 
-      - name: Enable corepack and install pnpm
+      - name: Install pnpm
         run: |
-          corepack enable
-          corepack prepare pnpm@8 --activate
+          npm install -g pnpm@8
+          echo "::add-path::$(npm root -g)/pnpm/bin"
           pnpm --version
 
       - name: Install Rust
