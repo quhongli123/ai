@@ -250,12 +250,17 @@ jobs:
           # 安装 pnpm
           RUN npm install -g pnpm@8
           
+          # 安装 Tauri CLI
+          RUN cargo install tauri-cli
+          
           WORKDIR /app
           COPY . .
           
           # 构建应用
           RUN pnpm install
-          RUN pnpm run tauri build
+          
+          # 使用 Tauri CLI 直接构建
+          RUN cargo tauri build
           
           # 复制构建结果到输出目录
           RUN mkdir -p /output
