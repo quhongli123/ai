@@ -16,7 +16,7 @@ jobs:
         include:
           - arch: aarch64
             cpu: cortex-a72
-            base_image: https://dietpi.com/downloads/images/DietPi_RPi5-ARMv8-Bookworm.img.xz
+            base_image: debian:bullseye
             deb: arm64
             rpm: aarch64
             appimage: aarch64
@@ -25,7 +25,7 @@ jobs:
             deb: armhfp
             rpm: arm
             appimage: armhf
-            base_image: https://dietpi.com/downloads/images/DietPi_RPi-ARMv7-Bookworm.img.xz
+            base_image: debian:bullseye
 
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +44,6 @@ jobs:
           bind_mount_repository: true
           image_additional_mb: 10240
           optimize_image: no
-          #exit_on_fail: no
           commands: |
             # Prevent Rust from complaining about $HOME not matching eid home
             export HOME=/root
