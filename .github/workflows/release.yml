@@ -14,13 +14,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest' # for Arm based macs (M1 and above).
+          - platform: 'macos-latest'
             args: '--target aarch64-apple-darwin'
-          - platform: 'macos-latest' # for Intel based macs.
+          - platform: 'macos-latest'
             args: '--target x86_64-apple-darwin'
           - platform: 'ubuntu-22.04'
             args: ''
     runs-on: ${{ matrix.platform }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -58,27 +59,24 @@ jobs:
       - name: Get version
         run: echo "APP_VERSION=$(jq -r .version src-tauri/tauri.conf.json)" >> $GITHUB_ENV
 
-      - name: Delete existing release
+      - name: Delete existing release (if exists)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Checking for existing release for version ${{ env.APP_VERSION }}"
-          
-          # Get release info
+
           RELEASE_INFO=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
             "https://api.github.com/repos/${{ github.repository }}/releases/tags/app-v${{ env.APP_VERSION }}")
-          
+
           RELEASE_ID=$(echo "$RELEASE_INFO" | jq -r '.id')
-          
+
           if [ "$RELEASE_ID" != "null" ]; then
             echo "Found release with ID: $RELEASE_ID. Deleting..."
             curl -X DELETE -H "Authorization: Bearer $GITHUB_TOKEN" \
               "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID"
-            
-            # Wait a bit to ensure the deletion is processed
-            sleep 5
-            
-            # Delete the tag as well
+
+            sleep 10  # 保证 GitHub 完成清理
+
             git tag -d "app-v${{ env.APP_VERSION }}" || true
             git push --delete origin "app-v${{ env.APP_VERSION }}" || true
           else
@@ -89,8 +87,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: app-v__VERSION__
-          releaseName: 'App v__VERSION__'
+          tagName: app-v${{ env.APP_VERSION }}
+          releaseName: 'App v${{ env.APP_VERSION }}'
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false

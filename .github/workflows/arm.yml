@@ -84,7 +84,7 @@ jobs:
           RUN pnpm install --no-frozen-lockfile --verbose
           
           # Build the application
-          RUN pnpm run pubhome -- --verbose
+          RUN pnpm run pubhome
           EOF
 
       - name: Get app version
