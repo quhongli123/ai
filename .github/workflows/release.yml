@@ -81,37 +81,84 @@ jobs:
             tar -czf app_${{ needs.create-release.outputs.version }}_amd64.AppImage.tar.gz app_*.AppImage
           fi
 
-  build-linux-arm64:
-    needs: create-release
-    runs-on: ubuntu-latest
-    name: Build ARM64 AppImage
+  build-arm:
+    runs-on: ubuntu-22.04
+
+    strategy:
+      matrix:
+        arch: [aarch64, armv7l]
+        include:
+          - arch: aarch64
+            cpu: cortex-a72
+            base_image: https://dietpi.com/downloads/images/DietPi_RPi5-ARMv8-Bookworm.img.xz
+            deb: arm64
+            rpm: aarch64
+            appimage: aarch64
+          - arch: armv7l
+            cpu: cortex-a53
+            deb: armhfp
+            rpm: arm
+            appimage: armhf
+            base_image: https://dietpi.com/downloads/images/DietPi_RPi-ARMv7-Bookworm.img.xz
+
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
 
-      - name: Run on ARM64
-        uses: uraimo/run-on-arch-action@v2
+      - name: Cache rust build artifacts
+        uses: Swatinem/rust-cache@v2
         with:
-          arch: aarch64
-          distro: debian
-          githubToken: ${{ secrets.GITHUB_TOKEN }}
-          install: |
-            sudo apt-get update
-            sudo apt-get install -y curl build-essential pkg-config \
-              libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev \
-              libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev \
-              nodejs npm
-            curl -fsSL https://get.pnpm.io/install.sh | SHELL=/bin/bash sh -
-          run: |
-            export SHELL=/bin/bash
-            export PATH="/root/.local/share/pnpm:$PATH"
-            cd /build
-            pnpm install
-            pnpm pubhome
-            cd src-tauri/target/release/bundle/appimage
-            tar -czf app_${{ needs.create-release.outputs.version }}_linux_arm64.AppImage.tar.gz *.AppImage
+          workspaces: src-tauri
+          cache-on-failure: true
 
-      - name: Upload ARM64 AppImage
-        uses: softprops/action-gh-release@v1
+      - name: Build app
+        uses: pguyot/arm-runner-action@v2.6.5
         with:
-          tag_name: ${{ needs.create-release.outputs.version }}
-          files: src-tauri/target/release/bundle/appimage/app_${{ needs.create-release.outputs.version }}_linux_arm64.AppImage.tar.gz
+          base_image: ${{ matrix.base_image }}
+          cpu: ${{ matrix.cpu }}
+          bind_mount_repository: true
+          image_additional_mb: 10240
+          optimize_image: no
+          #exit_on_fail: no
+          commands: |
+            # Prevent Rust from complaining about $HOME not matching eid home
+            export HOME=/root
+
+            # Workaround to CI worker being stuck on Updating crates.io index
+            export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+
+            # Install setup prerequisites
+            apt-get update -y --allow-releaseinfo-change
+            apt-get autoremove -y
+            apt-get install -y --no-install-recommends --no-install-suggests curl libwebkit2gtk-4.1-dev build-essential libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libfuse2 file
+            curl https://sh.rustup.rs -sSf | sh -s -- -y
+            . "$HOME/.cargo/env"
+            curl -fsSL https://deb.nodesource.com/setup_lts.x | bash
+            apt-get install -y nodejs
+
+            # Install frontend dependencies
+            npm install
+
+            # Build the application
+            npm run tauri build -- --verbose
+
+      - name: Get app version
+        run: echo "APP_VERSION=$(jq -r .version src-tauri/tauri.conf.json)" >> $GITHUB_ENV
+
+      # TODO: Combine this with the basic workflow and upload the files to the Release.
+      - name: Upload deb bundle
+        uses: actions/upload-artifact@v3
+        with:
+          name: Debian Bundle
+          path: ${{ github.workspace }}/src-tauri/target/release/bundle/deb/appname_${{ env.APP_VERSION }}_${{ matrix.deb }}.deb
+
+      - name: Upload rpm bundle
+        uses: actions/upload-artifact@v3
+        with:
+          name: RPM Bundle
+          path: ${{ github.workspace }}/src-tauri/target/release/bundle/rpm/appname-${{ env.APP_VERSION }}-1.${{ matrix.rpm }}.rpm
+
+      - name: Upload appimage bundle
+        uses: actions/upload-artifact@v3
+        with:
+          name: AppImage Bundle
+          path: ${{ github.workspace }}/src-tauri/target/release/bundle/appimage/appname_${{ env.APP_VERSION }}_${{ matrix.appimage }}.AppImage
