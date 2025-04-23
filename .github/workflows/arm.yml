@@ -16,7 +16,7 @@ jobs:
         include:
           - arch: aarch64
             cpu: cortex-a72
-            base_image: https://dietpi.com/downloads/images/DietPi_RPi5-ARMv8-Bookworm.img.xz
+            base_image: arm64v8/ubuntu:22.04
             deb: arm64
             rpm: aarch64
             appimage: aarch64
@@ -25,15 +25,17 @@ jobs:
             deb: armhfp
             rpm: arm
             appimage: armhf
-            base_image: https://dietpi.com/downloads/images/DietPi_RPi-ARMv7-Bookworm.img.xz
+            base_image: arm32v7/ubuntu:22.04
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install QEMU
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-user-static
+          sudo apt-get install -y qemu-user-static binfmt-support
+          sudo update-binfmts --enable qemu-arm
+          sudo update-binfmts --enable qemu-aarch64
 
       - name: Cache rust build artifacts
         uses: Swatinem/rust-cache@v2
@@ -42,7 +44,7 @@ jobs:
           cache-on-failure: true
 
       - name: Build app
-        uses: pguyot/arm-runner-action@v2.6.5
+        uses: pguyot/arm-runner-action@v2.5.2
         with:
           base_image: ${{ matrix.base_image }}
           cpu: ${{ matrix.cpu }}
