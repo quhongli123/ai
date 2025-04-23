@@ -118,7 +118,7 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
-          artifactName: ${{ matrix.platform == 'macos-latest' && matrix.args == '--target aarch64-apple-darwin' && 'AI 学院_${version}_arm64.dmg' || matrix.platform == 'macos-latest' && matrix.args == '--target x86_64-apple-darwin' && 'AI 学院_${version}_x64.dmg' || matrix.platform == 'ubuntu-22.04' && 'AI 学院_${version}_x64.deb' }}
+          artifactName: ${{ matrix.platform == 'macos-latest' && matrix.args == '--target aarch64-apple-darwin' && 'AI 学院_${version}_macos_arm64.dmg' || matrix.platform == 'macos-latest' && matrix.args == '--target x86_64-apple-darwin' && 'AI 学院_${version}_macos_x64.dmg' || matrix.platform == 'ubuntu-22.04' && 'AI 学院_${version}_linux_x64.deb' }}
 
       - name: Upload ARM artifacts
         if: matrix.platform == 'ubuntu-arm64' || matrix.platform == 'ubuntu-armv7'
@@ -126,6 +126,6 @@ jobs:
         with:
           name: ${{ matrix.platform == 'ubuntu-arm64' && 'ARM64 Bundle' || 'ARMv7 Bundle' }}
           path: |
-            ${{ github.workspace }}/src-tauri/target/release/bundle/deb/AI 学院_${{ needs.create-release.outputs.version }}_${{ matrix.platform == 'ubuntu-arm64' && 'arm64' || 'armhf' }}.deb
+            ${{ github.workspace }}/src-tauri/target/release/bundle/deb/AI 学院_${{ needs.create-release.outputs.version }}_linux_${{ matrix.platform == 'ubuntu-arm64' && 'arm64' || 'armhf' }}.deb
             ${{ github.workspace }}/src-tauri/target/release/bundle/rpm/AI 学院-${{ needs.create-release.outputs.version }}-1.${{ matrix.platform == 'ubuntu-arm64' && 'aarch64' || 'arm' }}.rpm
-            ${{ github.workspace }}/src-tauri/target/release/bundle/appimage/AI 学院_${{ needs.create-release.outputs.version }}_${{ matrix.platform == 'ubuntu-arm64' && 'aarch64' || 'armhf' }}.AppImage
+            ${{ github.workspace }}/src-tauri/target/release/bundle/appimage/AI 学院_${{ needs.create-release.outputs.version }}_linux_${{ matrix.platform == 'ubuntu-arm64' && 'aarch64' || 'armhf' }}.AppImage
