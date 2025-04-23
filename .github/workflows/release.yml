@@ -8,31 +8,58 @@ on:
       - 'v*' # 推送事件匹配 v*, 例如 v1.0，v20.15.10 等来触发工作流
 
 jobs:
-  publish-tauri:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get version
+        id: get-version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      - name: Create Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ steps.get-version.outputs.version }}
+          draft: true
+          prerelease: false
+
+  build-tauri:
+    needs: create-release
     permissions:
       contents: write
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest' # for Arm based macs (M1 and above).
+          - platform: 'macos-latest'
             args: '--target aarch64-apple-darwin'
-          - platform: 'macos-latest' # for Intel based macs.
+          - platform: 'macos-latest'
             args: '--target x86_64-apple-darwin'
           - platform: 'ubuntu-22.04'
             args: ''
-          - platform: 'windows-latest'
-            args: ''
+          - platform: 'ubuntu-arm64'
+            args: '--target aarch64-unknown-linux-gnu'
+          - platform: 'ubuntu-armv7'
+            args: '--target armv7-unknown-linux-gnueabihf'
+            cpu: cortex-a53
+            base_image: https://dietpi.com/downloads/images/DietPi_RPi-ARMv7-Bookworm.img.xz
 
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
 
       - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04' # This must match the platform value defined above.
+        if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
       - name: setup pnpm
         uses: pnpm/action-setup@v2
         with:
@@ -46,9 +73,8 @@ jobs:
           cache: 'pnpm'
 
       - name: install Rust stable
-        uses: dtolnay/rust-toolchain@stable # Set this to dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
         with:
-          # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Rust cache
@@ -57,16 +83,49 @@ jobs:
           workspaces: './src-tauri -> target'
 
       - name: install frontend dependencies
-        # If you don't have `beforeBuildCommand` configured you may want to build your frontend here too.
-        run: pnpm install # change this to npm or pnpm depending on which one you use.
+        run: pnpm install
+
+      - name: Build app (ARM)
+        if: matrix.platform == 'ubuntu-arm64' || matrix.platform == 'ubuntu-armv7'
+        uses: pguyot/arm-runner-action@v2.6.5
+        with:
+          base_image: ${{ matrix.base_image }}
+          cpu: ${{ matrix.cpu }}
+          bind_mount_repository: true
+          image_additional_mb: 10240
+          optimize_image: no
+          commands: |
+            export HOME=/root
+            export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+            apt-get update -y --allow-releaseinfo-change
+            apt-get autoremove -y
+            apt-get install -y --no-install-recommends --no-install-suggests curl libwebkit2gtk-4.1-dev build-essential libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libfuse2 file
+            curl https://sh.rustup.rs -sSf | sh -s -- -y
+            . "$HOME/.cargo/env"
+            curl -fsSL https://deb.nodesource.com/setup_lts.x | bash
+            apt-get install -y nodejs
+            npm install
+            npm run tauri build -- --verbose
 
       - uses: tauri-apps/tauri-action@v0
+        if: matrix.platform != 'ubuntu-arm64' && matrix.platform != 'ubuntu-armv7'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: app-v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
+          tagName: app-v__VERSION__
           releaseName: 'App v__VERSION__'
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+          artifactName: ${{ matrix.platform == 'macos-latest' && matrix.args == '--target aarch64-apple-darwin' && 'AI 学院_${version}_arm64.dmg' || matrix.platform == 'macos-latest' && matrix.args == '--target x86_64-apple-darwin' && 'AI 学院_${version}_x64.dmg' || matrix.platform == 'ubuntu-22.04' && 'AI 学院_${version}_x64.deb' }}
+
+      - name: Upload ARM artifacts
+        if: matrix.platform == 'ubuntu-arm64' || matrix.platform == 'ubuntu-armv7'
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.platform == 'ubuntu-arm64' && 'ARM64 Bundle' || 'ARMv7 Bundle' }}
+          path: |
+            ${{ github.workspace }}/src-tauri/target/release/bundle/deb/AI 学院_${{ needs.create-release.outputs.version }}_${{ matrix.platform == 'ubuntu-arm64' && 'arm64' || 'armhf' }}.deb
+            ${{ github.workspace }}/src-tauri/target/release/bundle/rpm/AI 学院-${{ needs.create-release.outputs.version }}-1.${{ matrix.platform == 'ubuntu-arm64' && 'aarch64' || 'arm' }}.rpm
+            ${{ github.workspace }}/src-tauri/target/release/bundle/appimage/AI 学院_${{ needs.create-release.outputs.version }}_${{ matrix.platform == 'ubuntu-arm64' && 'aarch64' || 'armhf' }}.AppImage
