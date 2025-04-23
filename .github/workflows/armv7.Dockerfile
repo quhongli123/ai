@@ -41,12 +41,13 @@ ENV TAURI_SKIP_UPDATE_CHECK=true
 ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse 
 ENV HOME=/root
 
-# 增加 swap 空间以防止内存不足
-RUN fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+# 优化 Rust 构建以使用更少的内存
+ENV CARGO_BUILD_JOBS=1
+ENV CARGO_NET_RETRY=5
 
-# 构建应用
+# 构建应用 - 分步骤执行以减少内存使用
 RUN pnpm run build
-RUN cd src-tauri && cargo build --release
+RUN cd src-tauri && cargo build --release --verbose
 
 # 单独执行打包步骤
 RUN cd src-tauri && cargo tauri build

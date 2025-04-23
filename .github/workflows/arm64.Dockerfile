@@ -41,9 +41,13 @@ ENV TAURI_SKIP_UPDATE_CHECK=true
 ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse 
 ENV HOME=/root
 
-# 构建应用
+# 优化 Rust 构建
+ENV CARGO_BUILD_JOBS=2
+ENV CARGO_NET_RETRY=5
+
+# 构建应用 - 分步骤执行以提高稳定性
 RUN pnpm run build
-RUN cd src-tauri && cargo build --release
+RUN cd src-tauri && cargo build --release --verbose
 
 # 单独执行打包步骤
 RUN cd src-tauri && cargo tauri build
