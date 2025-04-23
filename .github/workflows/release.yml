@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v2
       # 使用 ARM 架构的 runner 进行编译
       - uses: pguyot/arm-runner-action@v2.5.2
         with:
