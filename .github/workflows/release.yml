@@ -247,11 +247,8 @@ jobs:
           RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
           RUN apt-get install -y nodejs
           
-          # 安装 pnpm
-          RUN npm install -g pnpm@8
-          
-          # 安装 Tauri CLI
-          RUN cargo install tauri-cli
+          # 安装 pnpm 和 Tauri CLI
+          RUN npm install -g pnpm@8 @tauri-apps/cli
           
           WORKDIR /app
           COPY . .
@@ -260,7 +257,7 @@ jobs:
           RUN pnpm install
           
           # 使用 Tauri CLI 直接构建
-          RUN cargo tauri build
+          RUN npx tauri build
           
           # 复制构建结果到输出目录
           RUN mkdir -p /output
