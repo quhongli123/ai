@@ -1,33 +1,22 @@
-# 可选，将显示在 GitHub 存储库的"操作"选项卡中的工作流名称
 name: Release CI
- 
-# 指定此工作流的触发器
+
 on:
   push:
-    # 匹配特定标签 (refs/tags)
     tags:
-      - 'v*' # 推送事件匹配 v*, 例如 v1.0，v20.15.10 等来触发工作流
- 
-# 需要运行的作业组合
+      - 'v*'
+
 jobs:
-  # 任务：创建 release 版本
   create-release:
-    permissions:
-      contents: write
     runs-on: ubuntu-latest
     outputs:
       RELEASE_UPLOAD_ID: ${{ steps.create_release.outputs.id }}
- 
     steps:
-      - uses: actions/checkout@v4
-      # 查询版本号（tag）
+      - uses: actions/checkout@v2
       - name: Query version number
         id: get_version
-        shell: bash
         run: |
-          echo "version=${GITHUB_REF:10}" >> $GITHUB_OUTPUT
- 
-      # 根据查询到的版本号创建 release
+          echo "using version tag ${GITHUB_REF:10}"
+          echo "version=${GITHUB_REF:10}" >> "$GITHUB_OUTPUT"
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
@@ -40,39 +29,27 @@ jobs:
           draft: false
           prerelease: false
 
-  # 编译 Tauri
   build-tauri:
     needs: create-release
-    permissions:
-      contents: write
     strategy:
       fail-fast: false
       matrix:
         platform: [macos-latest, ubuntu-latest]
- 
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
-
-      # 安装 pnpm
+      - uses: actions/checkout@v2
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
         with:
           version: 8
           run_install: true
-
-      # 安装 Node.js
       - name: Setup node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v3
         with:
           node-version: 20
           cache: 'pnpm'
-
-      # 使用 pnpm 缓存
       - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
       - name: Setup pnpm cache
         uses: actions/cache@v3
         with:
@@ -80,204 +57,59 @@ jobs:
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
-      # 安装 Rust
       - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
- 
-      # 使用 Rust 缓存，加快安装速度
-      - uses: Swatinem/rust-cache@v2
+        uses: actions-rs/toolchain@v1
         with:
-          workspaces: './src-tauri -> target'
- 
+          toolchain: stable
+      - uses: Swatinem/rust-cache@v1
       - name: install dependencies (ubuntu only)
         if: matrix.platform == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libappindicator3-dev librsvg2-dev patchelf libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev
-          # 设置 PKG_CONFIG_PATH
-          echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" >> $GITHUB_ENV
-          # 验证 pkg-config 设置
-          pkg-config --list-all | grep javascriptcoregtk
-      - name: install dependencies (windows only)
-        if: matrix.platform == 'windows-latest'
-        run: |
-          # 安装 WiX 工具集
-          $WIX_VERSION = "3.14.0"
-          $WIX_URL = "https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip"
-          $WIX_PATH = "C:\wix"
-          
-          # 确保目录存在
-          if (-not (Test-Path $WIX_PATH)) {
-              New-Item -ItemType Directory -Force -Path $WIX_PATH
-          }
-          
-          # 下载并解压 WiX
-          $ProgressPreference = 'SilentlyContinue'
-          Invoke-WebRequest -Uri $WIX_URL -OutFile "$WIX_PATH\wix.zip"
-          Expand-Archive -Path "$WIX_PATH\wix.zip" -DestinationPath $WIX_PATH -Force
-          
-          # 设置环境变量
-          $env:PATH = "$WIX_PATH;$env:PATH"
-          $env:WIX = $WIX_PATH
-          
-          # 验证安装
-          Write-Host "Verifying WiX installation..."
-          if (Test-Path "$WIX_PATH\candle.exe") {
-              Write-Host "candle.exe found at $WIX_PATH\candle.exe"
-              & "$WIX_PATH\candle.exe" -version
-          } else {
-              Write-Error "candle.exe not found"
-          }
-          
-          if (Test-Path "$WIX_PATH\light.exe") {
-              Write-Host "light.exe found at $WIX_PATH\light.exe"
-              & "$WIX_PATH\light.exe" -version
-          } else {
-              Write-Error "light.exe not found"
-          }
-          
-          # 设置 Tauri 的 WiX 路径
-          $env:TAURI_WIX_DIR = $WIX_PATH
-      # 可选，如果需要将 Rust 编译为 wasm，则安装 wasm-pack
-      - uses: jetli/wasm-pack-action@v0.3.0
-        with:
-          # Optional version of wasm-pack to install(eg. 'v0.9.1', 'latest')
-          version: v0.9.1
- 
-      # 可选，如果需要使用 rsw 构建 wasm，则安装 rsw
       - name: Install rsw
         run: cargo install rsw
- 
-      # 安装依赖执行构建，以及推送 github release
-      - name: Install app dependencies and build it
+      - name: Build App
         run: pnpm install && pnpm pubhome
-
-      - name: Rename artifacts
+      - name: Rename and Package
         run: |
           cd src-tauri/target/release/bundle
           if [ "${{ matrix.platform }}" == "macos-latest" ]; then
-            # macOS 重命名
             mv "macos/AI 学院.app" "macos/app.app"
             mv "dmg/AI 学院_0.1.0_aarch64.dmg" "dmg/app_0.1.0_arm64.dmg"
-            cd macos
-            tar -czf app.app.tar.gz app.app
+            cd macos && tar -czf app.app.tar.gz app.app
           elif [ "${{ matrix.platform }}" == "ubuntu-latest" ]; then
-            # Linux 重命名
             mv "deb/AI 学院_0.1.0_amd64.deb" "deb/app_0.1.0_amd64.deb"
             mv "appimage/AI 学院_0.1.0_amd64.AppImage" "appimage/app_0.1.0_amd64.AppImage"
-            cd appimage
-            tar -czf app_0.1.0_amd64.AppImage.tar.gz app_0.1.0_amd64.AppImage
-          elif [ "${{ matrix.platform }}" == "windows-latest" ]; then
-            # Windows 重命名
-            mv "msi/AI 学院_0.1.0_x64_en-US.msi" "msi/app_0.1.0_x64_en-US.msi"
-            mv "nsis/AI 学院_0.1.0_x64-setup.exe" "nsis/app_0.1.0_x64-setup.exe"
+            cd appimage && tar -czf app_0.1.0_amd64.AppImage.tar.gz app_0.1.0_amd64.AppImage
           fi
 
-  build-arm:
+  build-arm64:
+    name: Build Linux ARM64
     needs: create-release
-    permissions:
-      contents: write
-    runs-on: ubuntu-22.04
-
-    strategy:
-      matrix:
-        arch: [aarch64, armv7l]
-        include:
-          - arch: aarch64
-            cpu: cortex-a72
-            base_image: arm64v8/debian:bookworm-slim
-            deb: arm64
-            rpm: aarch64
-            appimage: aarch64
-          - arch: armv7l
-            cpu: cortex-a53
-            deb: armhfp
-            rpm: arm
-            appimage: armhf
-            base_image: arm32v7/debian:bullseye-slim # 修复镜像不存在问题
-
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Cache rust build artifacts
-        uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@v2
+      - name: Build in ARM64 environment
+        uses: pguyot/arm-runner-action@v2
         with:
-          workspaces: src-tauri
-          cache-on-failure: true
-
-      - name: Build app
-        uses: pguyot/arm-runner-action@v2.6.5
-        with:
-          base_image: ${{ matrix.base_image }}
-          cpu: ${{ matrix.cpu }}
-          bind_mount_repository: true
-          image_additional_mb: 10240
-          optimize_image: no
+          base_image: arm64v8/debian:bullseye-slim
+          cpu: cortex-a53
           commands: |
-            # Prevent Rust from complaining about $HOME not matching eid home
-            export HOME=/root
-
-            # Workaround to CI worker being stuck on Updating crates.io index
-            export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
-
-            # Install setup prerequisites
-            apt-get update -y
-            apt-get install -y --no-install-recommends --no-install-suggests \
-              curl \
-              ca-certificates \
-              libwebkit2gtk-4.1-dev \
-              build-essential \
-              libssl-dev \
-              libgtk-3-dev \
-              libayatana-appindicator3-dev \
-              librsvg2-dev \
-              patchelf \
-              libfuse2 \
-              file \
-              pkg-config \
-              git
-
-            # Install Rust
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-            . "$HOME/.cargo/env"
-
-            # Install Node.js and npm
+            apt-get update
+            apt-get install -y curl libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf \
+              libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev build-essential pkg-config
             curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
             apt-get install -y nodejs
-            npm install -g npm@latest
-
-            # Install pnpm
-            npm install -g pnpm@8
-
-            # Install frontend dependencies
+            npm install -g pnpm
             pnpm install
-
-            # Build the application
-            pnpm run tauri build -- --verbose
-
-      - name: Get app version
-        run: echo "APP_VERSION=$(jq -r .version src-tauri/tauri.conf.json)" >> $GITHUB_ENV
-
-      - name: Upload deb bundle
-        uses: actions/upload-artifact@v4
+            cargo install rsw
+            pnpm pubhome
+            cd src-tauri/target/release/bundle/appimage
+            tar -czf app_arm64.AppImage.tar.gz *.AppImage
+      - name: Upload arm64 artifact
+        uses: softprops/action-gh-release@v1
         with:
-          name: Debian Bundle
-          path: ${{ github.workspace }}/src-tauri/target/release/bundle/deb/appname_${{ env.APP_VERSION }}_${{ matrix.deb }}.deb
-
-      - name: Upload rpm bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: RPM Bundle
-          path: ${{ github.workspace }}/src-tauri/target/release/bundle/rpm/appname-${{ env.APP_VERSION }}-1.${{ matrix.rpm }}.rpm
-
-      - name: Upload appimage bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: AppImage Bundle
-          path: ${{ github.workspace }}/src-tauri/target/release/bundle/appimage/appname_${{ env.APP_VERSION }}_${{ matrix.appimage }}.AppImage
+          files: src-tauri/target/release/bundle/appimage/app_arm64.AppImage.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
