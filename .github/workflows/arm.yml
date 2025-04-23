@@ -49,6 +49,7 @@ jobs:
             -f - . << EOF
           FROM ubuntu:22.04
           
+          # Install system dependencies
           RUN apt-get update && apt-get install -y \
             curl \
             build-essential \
@@ -61,16 +62,24 @@ jobs:
             libfuse2 \
             file \
             nodejs \
-            npm
+            npm \
+            git
+
+          # Install pnpm
+          RUN npm install -g pnpm@8
 
           WORKDIR /build
           COPY . .
           
+          # Install Rust
           RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
           ENV PATH="/root/.cargo/bin:${PATH}"
           
-          RUN npm install
-          RUN npm run tauri build -- --verbose
+          # Install dependencies with verbose logging
+          RUN pnpm install --no-frozen-lockfile
+          
+          # Build the application
+          RUN pnpm run tauri build -- --verbose
           EOF
 
       - name: Get app version
