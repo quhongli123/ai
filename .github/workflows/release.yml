@@ -1,9 +1,11 @@
 name: 'publish'
 
+# 指定此工作流的触发器
 on:
   push:
+    # 匹配特定标签 (refs/tags)
     tags:
-      - 'v*'
+      - 'v*' # 推送事件匹配 v*, 例如 v1.0，v20.15.10 等来触发工作流
 
 jobs:
   publish-tauri:
@@ -13,39 +15,65 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest'
+          - platform: 'macos-latest' # for Arm based macs (M1 and above).
             args: '--target aarch64-apple-darwin'
-            target: 'aarch64-apple-darwin'
-          - platform: 'macos-latest'
+          - platform: 'macos-latest' # for Intel based macs.
             args: '--target x86_64-apple-darwin'
-            target: 'x86_64-apple-darwin'
           - platform: 'ubuntu-22.04'
             args: ''
-            target: 'x86_64-unknown-linux-gnu'
-          - platform: 'ubuntu-22.04'
-            args: '--target aarch64-unknown-linux-gnu'
-            target: 'aarch64-unknown-linux-gnu'
           - platform: 'windows-latest'
             args: ''
-            target: 'x86_64-pc-windows-msvc'
 
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
 
       - name: install dependencies (ubuntu only)
-        if: startsWith(matrix.platform, 'ubuntu')
+        if: matrix.platform == 'ubuntu-22.04' # This must match the platform value defined above.
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            gcc-aarch64-linux-gnu \
-            libc6-dev-arm64-cross \
-            pkg-config \
-            qemu-user-static
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: install dependencies (windows only)
+        if: matrix.platform == 'windows-latest'
+        run: |
+          # 安装 WiX 工具集
+          $WIX_VERSION = "3.14.0"
+          $WIX_URL = "https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip"
+          $WIX_PATH = "C:\wix"
+          
+          # 确保目录存在
+          if (-not (Test-Path $WIX_PATH)) {
+              New-Item -ItemType Directory -Force -Path $WIX_PATH
+          }
+          
+          # 下载并解压 WiX
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest -Uri $WIX_URL -OutFile "$WIX_PATH\wix.zip"
+          Expand-Archive -Path "$WIX_PATH\wix.zip" -DestinationPath $WIX_PATH -Force
+          
+          # 设置环境变量
+          $env:PATH = "$WIX_PATH;$env:PATH"
+          $env:WIX = $WIX_PATH
+          
+          # 验证安装
+          Write-Host "Verifying WiX installation..."
+          if (Test-Path "$WIX_PATH\candle.exe") {
+              Write-Host "candle.exe found at $WIX_PATH\candle.exe"
+              & "$WIX_PATH\candle.exe" -version
+          } else {
+              Write-Error "candle.exe not found"
+          }
+          
+          if (Test-Path "$WIX_PATH\light.exe") {
+              Write-Host "light.exe found at $WIX_PATH\light.exe"
+              & "$WIX_PATH\light.exe" -version
+          } else {
+              Write-Error "light.exe not found"
+          }
+          
+          # 设置 Tauri 的 WiX 路径
+          $env:TAURI_WIX_DIR = $WIX_PATH
 
       - name: setup pnpm
         uses: pnpm/action-setup@v2
@@ -59,8 +87,11 @@ jobs:
           node-version: lts/*
           cache: 'pnpm'
 
-      - name: install Rust target
-        run: rustup target add ${{ matrix.target }}
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable # Set this to dtolnay/rust-toolchain@nightly
+        with:
+          # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -68,13 +99,14 @@ jobs:
           workspaces: './src-tauri -> target'
 
       - name: install frontend dependencies
-        run: pnpm install
+        # If you don't have `beforeBuildCommand` configured you may want to build your frontend here too.
+        run: pnpm install # change this to npm or pnpm depending on which one you use.
 
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: app-v__VERSION__
+          tagName: app-v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
           releaseName: 'App v__VERSION__'
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
