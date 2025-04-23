@@ -122,7 +122,7 @@ jobs:
 
       - name: Upload ARM artifacts
         if: matrix.platform == 'ubuntu-arm64' || matrix.platform == 'ubuntu-armv7'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.platform == 'ubuntu-arm64' && 'ARM64 Bundle' || 'ARMv7 Bundle' }}
           path: |
