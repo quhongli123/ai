@@ -175,9 +175,9 @@ jobs:
     needs: create-release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@latest
       - name: Build ARM64 version with arm-runner
-        uses: pguyot/arm-runner-action@v2.5.2
+        uses: pguyot/arm-runner-action@latest
         with:
           base_image: https://dietpi.com/downloads/images/DietPi_RPi-ARMv8-Bullseye.7z
           cpu: cortex-a53
@@ -201,12 +201,12 @@ jobs:
             npm install
             cargo tauri build
       - name: Upload ARM64 deb bundle
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@latest
         with:
           name: ARM64 Debian Bundle
           path: ${{ github.workspace }}/target/release/bundle/deb/tauri_1.4_arm64.deb
       - name: Upload ARM64 AppImage
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@latest
         with:
           name: ARM64 AppImage
           path: ${{ github.workspace }}/target/release/bundle/appimage/app_0.1.0_arm64.AppImage
