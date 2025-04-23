@@ -9,94 +9,78 @@ jobs:
   create-release:
     runs-on: ubuntu-latest
     outputs:
-      RELEASE_UPLOAD_ID: ${{ steps.create_release.outputs.id }}
+      version: ${{ steps.get_version.outputs.version }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
-      - name: Query version number
+      - name: Get version
         id: get_version
-        run: |
-          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
-      - name: Create Release
+      - name: Create GitHub Release
         id: create_release
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.version }}
+          name: Release ${{ steps.get_version.outputs.version }}
+          body: 'See the assets to download this version.'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: '${{ steps.get_version.outputs.version }}'
-          release_name: 'app ${{ steps.get_version.outputs.version }}'
-          body: 'See the assets to download this version and install.'
-          draft: false
-          prerelease: false
 
   build-tauri:
     needs: create-release
     strategy:
-      fail-fast: false
       matrix:
         platform: [macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+      - uses: pnpm/action-setup@v2
         with:
           version: 8
-          run_install: true
 
-      - name: Setup node
-        uses: actions/setup-node@v3
+      - uses: actions/setup-node@v3
         with:
           node-version: 20
           cache: 'pnpm'
 
-      - name: Get pnpm store directory
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+      - name: Install dependencies
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libappindicator3-dev librsvg2-dev \
+            patchelf libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev
 
-      - name: Setup pnpm cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Install Rust stable
-        uses: actions-rs/toolchain@v1
+      - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
 
       - uses: Swatinem/rust-cache@v1
 
-      - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-latest'
+      - name: Install and build
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libappindicator3-dev librsvg2-dev patchelf libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev
+          pnpm install
+          pnpm pubhome
 
-      - name: Install app dependencies and build it
-        run: pnpm install && pnpm pubhome
-
-      - name: Rename and compress artifacts
+      - name: Package artifact
         run: |
           cd src-tauri/target/release/bundle
           if [ "${{ matrix.platform }}" == "macos-latest" ]; then
-            cd macos
-            tar -czf app.app.tar.gz *.app
+            cd dmg
+            tar -czf app_${{ needs.create-release.outputs.version }}_macos.dmg.tar.gz *.dmg
           elif [ "${{ matrix.platform }}" == "ubuntu-latest" ]; then
             cd appimage
-            tar -czf app_amd64.AppImage.tar.gz *.AppImage
+            tar -czf app_${{ needs.create-release.outputs.version }}_linux_amd64.AppImage.tar.gz *.AppImage
           fi
 
-      - name: Upload artifacts
+      - name: Upload artifact
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            src-tauri/target/release/bundle/**/app*.tar.gz
+            src-tauri/target/release/bundle/**/app_*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -108,25 +92,30 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Run on ARM64
+      - name: Build in ARM64 container
         uses: uraimo/run-on-arch-action@v2
         with:
           arch: aarch64
-          distro: debian
-          install: |
-            apt-get update && apt-get install -y \
-              curl libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf \
+          distro: ubuntu20.04
+          dockerRunArgs: |
+            --volume "${{ github.workspace }}:/build"
+          setup: |
+            apt-get update && apt-get install -y curl build-essential pkg-config \
+              libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev \
               libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev \
-              build-essential pkg-config nodejs npm
-            npm install -g pnpm
+              nodejs npm
+            curl -fsSL https://get.pnpm.io/install.sh | sh -
           run: |
+            export PATH="/root/.local/share/pnpm:$PATH"
+            cd /build
             pnpm install
-            cargo install rsw || true
             pnpm pubhome
             cd src-tauri/target/release/bundle/appimage
-            tar -czf app_arm64.AppImage.tar.gz *.AppImage
+            tar -czf app_${{ needs.create-release.outputs.version }}_linux_arm64.AppImage.tar.gz *.AppImage
 
-      - name: Upload arm64 artifact
+      - name: Upload ARM64 artifact
         uses: softprops/action-gh-release@v1
         with:
-          files: src-tauri/target/release/bundle/appimage/app_arm64.AppImage_
+          files: src-tauri/target/release/bundle/appimage/app_${{ needs.create-release.outputs.version }}_linux_arm64.AppImage.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
