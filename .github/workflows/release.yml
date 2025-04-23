@@ -87,42 +87,36 @@ jobs:
   # Linux ARM64 构建
   publish-linux-arm64:
     name: Build Linux ARM64 (AppImage)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf curl
-
-      - name: setup pnpm
-        uses: pnpm/action-setup@v2
+      - name: Cache rust build artifacts
+        uses: swatinem/rust-cache@v2
         with:
-          version: 8
+          workspaces: src-tauri
+          cache-on-failure: true
 
-      - name: setup node
-        uses: actions/setup-node@v4
+      - name: Build app
+        uses: pguyot/arm-runner-action@v2.6.5
         with:
-          node-version: lts/*
-          cache: 'pnpm'
-
-      - name: build in ARM emulator
-        uses: pguyot/arm-runner-action@v2
-        with:
-          base_image: debian:bullseye
+          base_image: https://dietpi.com/downloads/images/DietPi_RPi5-ARMv8-Bookworm.img.xz
           cpu: cortex-a72
-          cpu_arch: arm64
           bind_mount_repository: true
+          image_additional_mb: 10240
+          optimize_image: no
           commands: |
-            apt-get update
-            apt-get install -y curl libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+            export HOME=/root
+            export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+            apt-get update -y --allow-releaseinfo-change
+            apt-get autoremove -y
+            apt-get install -y --no-install-recommends --no-install-suggests curl libwebkit2gtk-4.1-dev build-essential libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libfuse2 file
             curl https://sh.rustup.rs -sSf | sh -s -- -y
-            export PATH="$HOME/.cargo/bin:$PATH"
-            rustup target add aarch64-unknown-linux-gnu
+            . "$HOME/.cargo/env"
+            curl -fsSL https://deb.nodesource.com/setup_lts.x | bash
+            apt-get install -y nodejs
             pnpm install
-            cd src-tauri
             pnpm tauri build --target aarch64-unknown-linux-gnu
 
       - name: Upload ARM64 Artifacts
