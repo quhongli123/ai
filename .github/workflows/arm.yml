@@ -61,12 +61,16 @@ jobs:
             patchelf \
             libfuse2 \
             file \
-            nodejs \
-            npm \
             git
 
-          # Install pnpm
+          # Install Node.js LTS
+          RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+          RUN apt-get install -y nodejs
           RUN npm install -g pnpm@8
+
+          # Verify versions
+          RUN node --version
+          RUN pnpm --version
 
           WORKDIR /build
           COPY . .
@@ -76,7 +80,8 @@ jobs:
           ENV PATH="/root/.cargo/bin:${PATH}"
           
           # Install dependencies with verbose logging
-          RUN pnpm install --no-frozen-lockfile
+          RUN pnpm config set store-dir /root/.local/share/pnpm/store
+          RUN pnpm install --no-frozen-lockfile --verbose
           
           # Build the application
           RUN pnpm run tauri build -- --verbose

@@ -62,19 +62,31 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          echo "Deleting existing assets for version ${{ env.APP_VERSION }}"
+          
           # Get release ID
-          RELEASE_ID=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+          RELEASE_ID=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
             "https://api.github.com/repos/${{ github.repository }}/releases/tags/app-v${{ env.APP_VERSION }}" | \
             jq -r '.id')
           
-          # Get assets and delete them
-          curl -s -H "Authorization: token $GITHUB_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets" | \
-            jq -r '.[].id' | \
-            while read asset_id; do
-              curl -X DELETE -H "Authorization: token $GITHUB_TOKEN" \
+          if [ "$RELEASE_ID" != "null" ]; then
+            echo "Found release with ID: $RELEASE_ID"
+            
+            # Get assets and delete them
+            ASSETS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets")
+            
+            echo "Found assets: $ASSETS"
+            
+            echo "$ASSETS" | jq -r '.[].id' | while read asset_id; do
+              echo "Deleting asset ID: $asset_id"
+              curl -X DELETE -H "Authorization: Bearer $GITHUB_TOKEN" \
                 "https://api.github.com/repos/${{ github.repository }}/releases/assets/$asset_id"
+              sleep 1
             done
+          else
+            echo "No existing release found with tag app-v${{ env.APP_VERSION }}"
+          fi
 
       - uses: tauri-apps/tauri-action@v0
         env:
