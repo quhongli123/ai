@@ -175,7 +175,7 @@ jobs:
     needs: create-release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Build ARM64 version with arm-runner
         uses: pguyot/arm-runner-action@v2.5.2
         with:
