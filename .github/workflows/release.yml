@@ -177,13 +177,10 @@ jobs:
     steps:
       - uses: actions/checkout@2
       - name: Build ARM64 version with arm-runner
-        uses: pguyot/arm-runner-action@latest
+        uses: pguyot/arm-runner-action@2
+        id: build_image
         with:
-          base_image: https://dietpi.com/downloads/images/DietPi_RPi-ARMv8-Bullseye.7z
-          cpu: cortex-a53
-          bind_mount_repository: true
-          image_additional_mb: 10240
-          optimize_image: false
+          base_image: raspios_lite:2022-04-04
           commands: |
             export HOME=/root
             export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
