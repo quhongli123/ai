@@ -3,7 +3,7 @@ name: 'Publish Linux Arm builds'
 on:
   workflow_dispatch:
   push:
-    tag:
+    tags:
       - v*
 
 jobs:
@@ -84,7 +84,7 @@ jobs:
           RUN pnpm install --no-frozen-lockfile --verbose
           
           # Build the application
-          RUN pnpm run tauri build -- --verbose
+          RUN pnpm run pubhome -- --verbose
           EOF
 
       - name: Get app version

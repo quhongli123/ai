@@ -58,32 +58,29 @@ jobs:
       - name: Get version
         run: echo "APP_VERSION=$(jq -r .version src-tauri/tauri.conf.json)" >> $GITHUB_ENV
 
-      - name: Delete existing release assets
+      - name: Delete existing release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Deleting existing assets for version ${{ env.APP_VERSION }}"
+          echo "Checking for existing release for version ${{ env.APP_VERSION }}"
           
-          # Get release ID
-          RELEASE_ID=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/tags/app-v${{ env.APP_VERSION }}" | \
-            jq -r '.id')
+          # Get release info
+          RELEASE_INFO=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/app-v${{ env.APP_VERSION }}")
+          
+          RELEASE_ID=$(echo "$RELEASE_INFO" | jq -r '.id')
           
           if [ "$RELEASE_ID" != "null" ]; then
-            echo "Found release with ID: $RELEASE_ID"
+            echo "Found release with ID: $RELEASE_ID. Deleting..."
+            curl -X DELETE -H "Authorization: Bearer $GITHUB_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID"
             
-            # Get assets and delete them
-            ASSETS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-              "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets")
+            # Wait a bit to ensure the deletion is processed
+            sleep 5
             
-            echo "Found assets: $ASSETS"
-            
-            echo "$ASSETS" | jq -r '.[].id' | while read asset_id; do
-              echo "Deleting asset ID: $asset_id"
-              curl -X DELETE -H "Authorization: Bearer $GITHUB_TOKEN" \
-                "https://api.github.com/repos/${{ github.repository }}/releases/assets/$asset_id"
-              sleep 1
-            done
+            # Delete the tag as well
+            git tag -d "app-v${{ env.APP_VERSION }}" || true
+            git push --delete origin "app-v${{ env.APP_VERSION }}" || true
           else
             echo "No existing release found with tag app-v${{ env.APP_VERSION }}"
           fi
