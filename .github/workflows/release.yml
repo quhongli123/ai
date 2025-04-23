@@ -185,7 +185,7 @@ jobs:
         include:
           - arch: aarch64
             cpu: cortex-a72
-            base_image: https://dietpi.com/downloads/images/DietPi_RPi5-ARMv8-Bookworm.img.xz
+            base_image: arm64v8/debian:bookworm-slim
             deb: arm64
             rpm: aarch64
             appimage: aarch64
@@ -194,10 +194,16 @@ jobs:
             deb: armhfp
             rpm: arm
             appimage: armhf
-            base_image: https://dietpi.com/downloads/images/DietPi_RPi-ARMv7-Bookworm.img.xz
+            base_image: arm32v7/debian:bookworm-slim
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Cache rust build artifacts
         uses: Swatinem/rust-cache@v2
@@ -221,10 +227,10 @@ jobs:
             export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 
             # Install setup prerequisites
-            apt-get update -y --allow-releaseinfo-change
-            apt-get autoremove -y
+            apt-get update -y
             apt-get install -y --no-install-recommends --no-install-suggests \
               curl \
+              ca-certificates \
               libwebkit2gtk-4.1-dev \
               build-essential \
               libssl-dev \
@@ -233,26 +239,31 @@ jobs:
               librsvg2-dev \
               patchelf \
               libfuse2 \
-              file
+              file \
+              pkg-config \
+              git
 
             # Install Rust
-            curl https://sh.rustup.rs -sSf | sh -s -- -y
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
             . "$HOME/.cargo/env"
 
-            # Install Node.js
-            curl -fsSL https://deb.nodesource.com/setup_lts.x | bash
+            # Install Node.js and npm
+            curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
             apt-get install -y nodejs
+            npm install -g npm@latest
+
+            # Install pnpm
+            npm install -g pnpm@8
 
             # Install frontend dependencies
-            npm install
+            pnpm install
 
             # Build the application
-            npm run tauri build -- --verbose
+            pnpm run tauri build -- --verbose
 
       - name: Get app version
         run: echo "APP_VERSION=$(jq -r .version src-tauri/tauri.conf.json)" >> $GITHUB_ENV
 
-      # TODO: Combine this with the basic workflow and upload the files to the Release.
       - name: Upload deb bundle
         uses: actions/upload-artifact@v4
         with:
