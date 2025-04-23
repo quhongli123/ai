@@ -1,0 +1,105 @@
+name: ARM Build Workflow
+
+# 这个工作流可以手动触发
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号 (例如: 0.1.0)'
+        required: true
+        default: '0.1.0'
+
+jobs:
+  # 构建 ARM64 版本
+  build-arm64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Set version
+        run: echo "APP_VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+
+      - name: Build ARM64 with Docker Buildx
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: .github/workflows/arm64.Dockerfile
+          platforms: linux/arm64
+          push: false
+          load: true
+          tags: arm64-build:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract artifacts from container
+        run: |
+          mkdir -p output
+          docker create --name arm64-container arm64-build:latest
+          docker cp arm64-container:/app/src-tauri/target/release/bundle/deb/ output/deb/
+          docker cp arm64-container:/app/src-tauri/target/release/bundle/appimage/ output/appimage/
+          docker rm -f arm64-container
+
+      - name: Upload ARM64 DEB package
+        uses: actions/upload-artifact@v4
+        with:
+          name: arm64-deb-package
+          path: output/deb/*_arm64.deb
+
+      - name: Upload ARM64 AppImage package
+        uses: actions/upload-artifact@v4
+        with:
+          name: arm64-appimage-package
+          path: output/appimage/*_aarch64.AppImage
+
+  # 构建 ARMv7 版本
+  build-armv7:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Set version
+        run: echo "APP_VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+
+      - name: Build ARMv7 with Docker Buildx
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: .github/workflows/armv7.Dockerfile
+          platforms: linux/arm/v7
+          push: false
+          load: true
+          tags: armv7-build:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract artifacts from container
+        run: |
+          mkdir -p output
+          docker create --name armv7-container armv7-build:latest
+          docker cp armv7-container:/app/src-tauri/target/release/bundle/deb/ output/deb/
+          docker cp armv7-container:/app/src-tauri/target/release/bundle/appimage/ output/appimage/
+          docker rm -f armv7-container
+
+      - name: Upload ARMv7 DEB package
+        uses: actions/upload-artifact@v4
+        with:
+          name: armv7-deb-package
+          path: output/deb/*_armhf.deb
+
+      - name: Upload ARMv7 AppImage package
+        uses: actions/upload-artifact@v4
+        with:
+          name: armv7-appimage-package
+          path: output/appimage/*_armhf.AppImage 
