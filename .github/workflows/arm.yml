@@ -3,8 +3,8 @@ name: 'Publish Linux Arm builds'
 on:
   workflow_dispatch:
   push:
-    branches:
-      - release
+    tag:
+      - v*
 
 jobs:
   build:
