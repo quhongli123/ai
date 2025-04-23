@@ -44,7 +44,7 @@ jobs:
             # Build the application
             cargo tauri build
       - name: Upload deb bundle
-      - uses: actions/checkout@v4
+        uses: actions/upload-artifact@v4
         with:
           name: Debian Bundle
           path: ${{ github.workspace }}/target/release/bundle/deb/tauri_1.4_arm64.deb
