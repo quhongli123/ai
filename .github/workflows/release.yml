@@ -10,155 +10,99 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.get_version.outputs.version }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Get version from tag
-        id: get_version
-        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ steps.get_version.outputs.version }}
-          release_name: app ${{ steps.get_version.outputs.version }}
-          body: 'See the assets to download this version and install.'
-          draft: false
-          prerelease: false
-
-  build-tauri:
-    needs: create-release
-    strategy:
-      fail-fast: false
-      matrix:
-        platform: [macos-latest, ubuntu-latest]
-    runs-on: ${{ matrix.platform }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
-          run_install: true
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 20
-          cache: 'pnpm'
-
-      - name: Setup Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-
-      - uses: Swatinem/rust-cache@v1
-
-      - name: Install dependencies for Linux
-        if: matrix.platform == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libappindicator3-dev librsvg2-dev patchelf libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev
-
-      - name: Build Tauri app
-        run: pnpm install && pnpm pubhome
-
-      - name: Rename artifacts
-        run: |
-          cd src-tauri/target/release/bundle
-          if [ "${{ matrix.platform }}" == "macos-latest" ]; then
-            mv "macos/AI 学院.app" "macos/app.app"
-            mv "dmg/AI 学院_${{ needs.create-release.outputs.version }}_aarch64.dmg" "dmg/app_${{ needs.create-release.outputs.version }}_arm64.dmg"
-            cd macos
-            tar -czf app.app.tar.gz app.app
-          elif [ "${{ matrix.platform }}" == "ubuntu-latest" ]; then
-            mv "appimage/AI 学院_${{ needs.create-release.outputs.version }}_amd64.AppImage" "appimage/app_${{ needs.create-release.outputs.version }}_amd64.AppImage"
-            cd appimage
-            tar -czf app_${{ needs.create-release.outputs.version }}_amd64.AppImage.tar.gz app_*.AppImage
-          fi
-
-  build-arm:
-    runs-on: ubuntu-22.04
-
-    strategy:
-      matrix:
-        arch: [aarch64, armv7l]
-        include:
-          - arch: aarch64
-            cpu: cortex-a72
-            base_image: https://dietpi.com/downloads/images/DietPi_RPi5-ARMv8-Bookworm.img.xz
-            deb: arm64
-            rpm: aarch64
-            appimage: aarch64
-          - arch: armv7l
-            cpu: cortex-a53
-            deb: armhfp
-            rpm: arm
-            appimage: armhf
-            base_image: https://dietpi.com/downloads/images/DietPi_RPi-ARMv7-Bookworm.img.xz
 
     steps:
       - uses: actions/checkout@v3
 
-      - name: Cache rust build artifacts
-        uses: Swatinem/rust-cache@v2
+      - name: Get version
+        id: get_version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
         with:
-          workspaces: src-tauri
-          cache-on-failure: true
+          tag_name: ${{ steps.get_version.outputs.version }}
+          name: Release ${{ steps.get_version.outputs.version }}
+          body: 'See the assets to download this version.'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build app
-        uses: pguyot/arm-runner-action@v2.6.5
+  build-tauri:
+    needs: create-release
+    strategy:
+      matrix:
+        platform: 
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+    runs-on: ${{ matrix.platform.os }}
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: pnpm/action-setup@v2
         with:
-          base_image: ${{ matrix.base_image }}
-          cpu: ${{ matrix.cpu }}
-          bind_mount_repository: true
-          image_additional_mb: 10240
-          optimize_image: no
-          #exit_on_fail: no
-          commands: |
-            # Prevent Rust from complaining about $HOME not matching eid home
-            export HOME=/root
+          version: 8
 
-            # Workaround to CI worker being stuck on Updating crates.io index
-            export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
-
-            # Install setup prerequisites
-            apt-get update -y --allow-releaseinfo-change
-            apt-get autoremove -y
-            apt-get install -y --no-install-recommends --no-install-suggests curl libwebkit2gtk-4.1-dev build-essential libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libfuse2 file
-            curl https://sh.rustup.rs -sSf | sh -s -- -y
-            . "$HOME/.cargo/env"
-            curl -fsSL https://deb.nodesource.com/setup_lts.x | bash
-            apt-get install -y nodejs
-
-            # Install frontend dependencies
-            npm install
-
-            # Build the application
-            npm run tauri build -- --verbose
-
-      - name: Get app version
-        run: echo "APP_VERSION=$(jq -r .version src-tauri/tauri.conf.json)" >> $GITHUB_ENV
-
-      # TODO: Combine this with the basic workflow and upload the files to the Release.
-      - name: Upload deb bundle
-        uses: actions/upload-artifact@v3
+      - uses: actions/setup-node@v3
         with:
-          name: Debian Bundle
-          path: ${{ github.workspace }}/src-tauri/target/release/bundle/deb/appname_${{ env.APP_VERSION }}_${{ matrix.deb }}.deb
+          node-version: 20
+          cache: 'pnpm'
 
-      - name: Upload rpm bundle
-        uses: actions/upload-artifact@v3
-        with:
-          name: RPM Bundle
-          path: ${{ github.workspace }}/src-tauri/target/release/bundle/rpm/appname-${{ env.APP_VERSION }}-1.${{ matrix.rpm }}.rpm
+      - name: Install dependencies
+        if: matrix.platform.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libappindicator3-dev librsvg2-dev \
+            patchelf libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev
+          if [ "${{ matrix.platform.target }}" == "aarch64-unknown-linux-gnu" ]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          fi
 
-      - name: Upload appimage bundle
-        uses: actions/upload-artifact@v3
+      - uses: actions-rs/toolchain@v1
         with:
-          name: AppImage Bundle
-          path: ${{ github.workspace }}/src-tauri/target/release/bundle/appimage/appname_${{ env.APP_VERSION }}_${{ matrix.appimage }}.AppImage
+          toolchain: stable
+          target: ${{ matrix.platform.target }}
+
+      - uses: Swatinem/rust-cache@v1
+
+      - name: Install and build
+        run: |
+          pnpm install
+          pnpm pubhome
+
+      - name: Build Tauri for target
+        run: |
+          cd src-tauri
+          cargo build --release --target ${{ matrix.platform.target }}
+
+      - name: Package artifact
+        run: |
+          cd src-tauri/target/${{ matrix.platform.target }}/release
+          if [ "${{ matrix.platform.os }}" == "macos-latest" ]; then
+            # macOS packaging
+            cd ../bundle/dmg
+            tar -czf app_${{ needs.create-release.outputs.version }}_macos.dmg.tar.gz *.dmg
+          elif [ "${{ matrix.platform.os }}" == "ubuntu-latest" ]; then
+            # Linux packaging
+            if [ "${{ matrix.platform.target }}" == "x86_64-unknown-linux-gnu" ]; then
+              cd ../bundle/appimage
+              tar -czf app_${{ needs.create-release.outputs.version }}_linux_x64.AppImage.tar.gz *.AppImage
+            elif [ "${{ matrix.platform.target }}" == "aarch64-unknown-linux-gnu" ]; then
+              # For ARM, you might need to adjust the packaging method
+              # This example just creates a tarball of the binary
+              tar -czf app_${{ needs.create-release.outputs.version }}_linux_arm64.tar.gz your_app_name
+            fi
+          fi
+
+      - name: Upload artifact
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            src-tauri/target/**/app_*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
