@@ -1,8 +1,13 @@
-name: Build Tauri App for Linux ARM64
-
+# 可选，将显示在 GitHub 存储库的"操作"选项卡中的工作流名称
+name: Build ARM64 on QEMU
+ 
+# 指定此工作流的触发器
 on:
-  workflow_dispatch:
-
+  push:
+    # 匹配特定标签 (refs/tags)
+    tags:
+      - 'v*' # 推送事件匹配 v*, 例如 v1.0，v20.15.10 等来触发工作流
+ 
 jobs:
   build-linux-arm64:
     runs-on: ubuntu-latest
