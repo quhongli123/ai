@@ -1,180 +1,218 @@
-# 可选，将显示在 GitHub 存储库的"操作"选项卡中的工作流名称
-name: Release CI
- 
-# 指定此工作流的触发器
-on:
-  push:
-    # 匹配特定标签 (refs/tags)
-    tags:
-      - 'v*' # 推送事件匹配 v*, 例如 v1.0，v20.15.10 等来触发工作流
- 
-# 需要运行的作业组合
-jobs:
-  # 任务：创建 release 版本
-  create-release:
-    runs-on: ubuntu-latest
-    outputs:
-      RELEASE_UPLOAD_ID: ${{ steps.create_release.outputs.id }}
- 
-    steps:
-      - uses: actions/checkout@v2
-      # 查询版本号（tag）
-      - name: Query version number
-        id: get_version
-        shell: bash
-        run: |
-          echo "using version tag ${GITHUB_REF:10}"
-          echo ::set-output name=version::"${GITHUB_REF:10}"
- 
-      # 根据查询到的版本号创建 release
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: '${{ steps.get_version.outputs.VERSION }}'
-          release_name: 'app ${{ steps.get_version.outputs.VERSION }}'
-          body: 'See the assets to download this version and install.'
-          draft: false
-          prerelease: false
+name: Release Build
 
-  # 编译 Tauri
-  build-tauri:
-    needs: create-release
+on:
+  workflow_dispatch:
+permissions: write-all
+
+jobs:
+  release:
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, ubuntu-latest]
- 
-    runs-on: ${{ matrix.platform }}
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      # 安装 pnpm
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
-          run_install: true
+      - name: Install Rust Stable
+        uses: dtolnay/rust-toolchain@stable
 
-      # 安装 Node.js
-      - name: Setup node
-        uses: actions/setup-node@v3
-        with:
-          node-version: 20
-          cache: 'pnpm'
+      - name: Add Rust Target
+        run: rustup target add ${{ matrix.target }}
 
-      # 使用 pnpm 缓存
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-      - name: Setup pnpm cache
-        uses: actions/cache@v3
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
         with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-      # 安装 Rust
-      - name: Install Rust stable
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
- 
-      # 使用 Rust 缓存，加快安装速度
-      - uses: Swatinem/rust-cache@v1
- 
-      - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-latest'
+          workspaces: src-tauri
+          cache-all-crates: true
+
+      - name: Install dependencies (ubuntu only)
+        if: matrix.os == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libappindicator3-dev librsvg2-dev patchelf libjavascriptcoregtk-4.1-dev libwebkit2gtk-4.1-dev
-          # 设置 PKG_CONFIG_PATH
-          echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig" >> $GITHUB_ENV
-          # 验证 pkg-config 设置
-          pkg-config --list-all | grep javascriptcoregtk
-      - name: install dependencies (windows only)
-        if: matrix.platform == 'windows-latest'
-        run: |
-          # 安装 WiX 工具集
-          $WIX_VERSION = "3.14.0"
-          $WIX_URL = "https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip"
-          $WIX_PATH = "C:\wix"
-          
-          # 确保目录存在
-          if (-not (Test-Path $WIX_PATH)) {
-              New-Item -ItemType Directory -Force -Path $WIX_PATH
-          }
-          
-          # 下载并解压 WiX
-          $ProgressPreference = 'SilentlyContinue'
-          Invoke-WebRequest -Uri $WIX_URL -OutFile "$WIX_PATH\wix.zip"
-          Expand-Archive -Path "$WIX_PATH\wix.zip" -DestinationPath $WIX_PATH -Force
-          
-          # 设置环境变量
-          $env:PATH = "$WIX_PATH;$env:PATH"
-          $env:WIX = $WIX_PATH
-          
-          # 验证安装
-          Write-Host "Verifying WiX installation..."
-          if (Test-Path "$WIX_PATH\candle.exe") {
-              Write-Host "candle.exe found at $WIX_PATH\candle.exe"
-              & "$WIX_PATH\candle.exe" -version
-          } else {
-              Write-Error "candle.exe not found"
-          }
-          
-          if (Test-Path "$WIX_PATH\light.exe") {
-              Write-Host "light.exe found at $WIX_PATH\light.exe"
-              & "$WIX_PATH\light.exe" -version
-          } else {
-              Write-Error "light.exe not found"
-          }
-          
-          # 设置 Tauri 的 WiX 路径
-          $env:TAURI_WIX_DIR = $WIX_PATH
-      # 可选，如果需要将 Rust 编译为 wasm，则安装 wasm-pack
-      - uses: jetli/wasm-pack-action@v0.3.0
-        with:
-          # Optional version of wasm-pack to install(eg. 'v0.9.1', 'latest')
-          version: v0.9.1
- 
-      # 可选，如果需要使用 rsw 构建 wasm，则安装 rsw
-      - name: Install rsw
-        run: cargo install rsw
- 
-      # 安装依赖执行构建，以及推送 github release
-      - name: Install app dependencies and build it
-        run: pnpm install && pnpm pubhome
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
 
-      - name: Rename artifacts
-        run: |
-          cd src-tauri/target/release/bundle
-          if [ "${{ matrix.platform }}" == "macos-latest" ]; then
-            # macOS 重命名
-            mv "macos/AI 学院.app" "macos/app.app"
-            mv "dmg/AI 学院_0.1.0_aarch64.dmg" "dmg/app_0.1.0_arm64.dmg"
-            cd macos
-            tar -czf app.app.tar.gz app.app
-          elif [ "${{ matrix.platform }}" == "ubuntu-latest" ]; then
-            # Linux 重命名
-            mv "deb/AI 学院_0.1.0_amd64.deb" "deb/app_0.1.0_amd64.deb"
-            mv "appimage/AI 学院_0.1.0_amd64.AppImage" "appimage/app_0.1.0_amd64.AppImage"
-            cd appimage
-            tar -czf app_0.1.0_amd64.AppImage.tar.gz app_0.1.0_amd64.AppImage
-          elif [ "${{ matrix.platform }}" == "windows-latest" ]; then
-            # Windows 重命名
-            mv "msi/AI 学院_0.1.0_x64_en-US.msi" "msi/app_0.1.0_x64_en-US.msi"
-            mv "nsis/AI 学院_0.1.0_x64-setup.exe" "nsis/app_0.1.0_x64-setup.exe"
-          fi
-      - uses: tauri-apps/tauri-action@v0.3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Node
+        uses: actions/setup-node@v4
         with:
-          releaseId: ${{ needs.create-release.outputs.RELEASE_UPLOAD_ID }}
-          includeDebugArtifacts: true
-          releaseDraft: false
-          prerelease: false
-          publish: true
+          node-version: '22'
+
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          run_install: false
+
+      - name: Pnpm install and check
+        run: |
+          pnpm i
+          pnpm check ${{ matrix.target }}
+
+      - name: Add SENTRY_DSN and VITE_UPDATER_ACTIVE to .env
+        run: |
+          echo "SENTRY_DSN=${{ secrets.SENTRY_DSN }}" >> .env
+          echo "VITE_UPDATER_ACTIVE=true" >> .env
+
+      - name: Tauri build
+        uses: tauri-apps/tauri-action@v0
+        with:
+          tagName: v__VERSION__
+          releaseName: 'V2rayX v__VERSION__'
+          releaseBody: 'More new features are now supported.'
+          tauriScript: pnpm
+          args: --target ${{ matrix.target }}
+
+  release-for-linux-arm:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: aarch64-unknown-linux-gnu
+            arch: arm64
+          - os: ubuntu-22.04
+            target: armv7-unknown-linux-gnueabihf
+            arch: armhf
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust Stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add Rust Target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          cache-all-crates: true
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Pnpm install and check
+        run: |
+          pnpm i
+          pnpm check ${{ matrix.target }}
+
+      - name: Add SENTRY_DSN and VITE_UPDATER_ACTIVE to .env
+        run: |
+          echo "SENTRY_DSN=${{ secrets.SENTRY_DSN }}" >> .env
+          echo "VITE_UPDATER_ACTIVE=true" >> .env
+
+      - name: 'Setup for linux'
+        run: |-
+          sudo ls -lR /etc/apt/
+
+          cat > /tmp/sources.list << EOF
+          deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu jammy main multiverse universe restricted
+          deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu jammy-security main multiverse universe restricted
+          deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu jammy-updates main multiverse universe restricted
+          deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu jammy-backports main multiverse universe restricted
+
+          deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy main multiverse universe restricted
+          deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main multiverse universe restricted
+          deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main multiverse universe restricted
+          deb [arch=armhf,arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main multiverse universe restricted
+          EOF
+
+          sudo mv /etc/apt/sources.list /etc/apt/sources.list.default
+          sudo mv /tmp/sources.list /etc/apt/sources.list
+
+          sudo dpkg --add-architecture ${{ matrix.arch }}
+          sudo apt update
+
+          sudo apt install -y \
+            libwebkit2gtk-4.1-dev:${{ matrix.arch }} \
+            libayatana-appindicator3-dev:${{ matrix.arch }} \
+            libssl-dev:${{ matrix.arch }} \
+            patchelf:${{ matrix.arch }} \
+            librsvg2-dev:${{ matrix.arch }}
+
+      - name: 'Install aarch64 tools'
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt install -y \
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu
+
+      - name: 'Install armv7 tools'
+        if: matrix.target == 'armv7-unknown-linux-gnueabihf'
+        run: |
+          sudo apt install -y \
+            gcc-arm-linux-gnueabihf \
+            g++-arm-linux-gnueabihf
+
+      - name: Build for Linux
+        run: |
+          export PKG_CONFIG_ALLOW_CROSS=1
+          if [ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]; then
+            export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig/:$PKG_CONFIG_PATH
+            export PKG_CONFIG_SYSROOT_DIR=/usr/aarch64-linux-gnu/
+          elif [ "${{ matrix.target }}" == "armv7-unknown-linux-gnueabihf" ]; then
+            export PKG_CONFIG_PATH=/usr/lib/arm-linux-gnueabihf/pkgconfig/:$PKG_CONFIG_PATH
+            export PKG_CONFIG_SYSROOT_DIR=/usr/arm-linux-gnueabihf/
+          fi
+          pnpm build --target ${{ matrix.target }}
+
+      - name: Get Version
+        run: |
+          sudo apt-get update
+          sudo apt-get install jq
+          echo "VERSION=$(jq -r '.version' src-tauri/tauri.conf.json)" >> $GITHUB_ENV
+          echo "BUILDTIME=$(TZ=Asia/Shanghai date)" >> $GITHUB_ENV
+
+      - name: Upload Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{env.VERSION}}
+          name: 'V2rayX v${{env.VERSION}}'
+          body: 'More new features are now supported.'
+          token: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
+            src-tauri/target/${{ matrix.target }}/release/bundle/rpm/*.rpm
+
+  release-update:
+    runs-on: ubuntu-latest
+    needs: [release, release-for-linux-arm]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: pnpm/action-setup@v4
+        name: Install pnpm
+        with:
+          run_install: false
+
+      - name: Pnpm install
+        run: pnpm i
+
+      - name: Release updater file
+        run: pnpm updater
